@@ -1,9 +1,13 @@
 {
   "name": "@webrecorder/awp-sw",
-  "type": "module",
+  "browser": "dist/sw.js",
   "main": "index.js",
+  "type": "module",
   "version": "0.1.2",
   "license": "AGPL-3.0-or-later",
+  "exports": {
+    ".": "./src/index.js"
+  },
   "dependencies": {
     "@ipld/car": "^5.0.1",
     "@ipld/unixfs": "^2.0.0",
