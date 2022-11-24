@@ -18,6 +18,13 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   const filename = "webarchive.wacz";
 
+  if (downloaderOpts.customSplits) {
+    const ZIP = new Uint8Array([]);
+    const WARC_PAYLOAD = new Uint8Array([]);
+    const WARC_GROUP = new Uint8Array([]);
+    downloaderOpts.markers = {ZIP, WARC_PAYLOAD, WARC_GROUP};
+  }
+
   const dl = new Downloader({...downloaderOpts, coll, filename, gzip: false});
   const dlResponse = await dl.download(progress);
 
@@ -66,7 +73,8 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
   ipfsGenerateCar( 
     writable, 
     dlResponse.filename, dlResponse.body,
-    swContent, uiContent, replayOpts
+    swContent, uiContent, replayOpts,
+    downloaderOpts.markers,
   );
 
   await p;
@@ -112,7 +120,8 @@ async function ipfsWriteBuff(writer, name, content, dir) {
 }
 
 // ===========================================================================
-export async function ipfsGenerateCar(writable, waczPath, waczContent, swContent, uiContent, replayOpts) {
+export async function ipfsGenerateCar(writable, waczPath, 
+  waczContent, swContent, uiContent, replayOpts, markers) {
 
   const writer = UnixFS.createWriter({ writable });
 
@@ -133,33 +142,171 @@ export async function ipfsGenerateCar(writable, waczPath, waczContent, swContent
   }
 
   await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
-  await ipfsWriteBuff(writer, waczPath, iterate(waczContent), rootDir);
 
+  if (!markers) {
+    await ipfsWriteBuff(writer, waczPath, iterate(waczContent), rootDir);
+  } else {
+    await splitByWarcRecordGroup(writer, waczPath, iterate(waczContent), rootDir, markers);
+  }
 
   const {cid} = await rootDir.close();
 
   writer.close();
 
-  //const car = encodeCar(cid, readable);
-
-  //return {cid, readable, size: dagByteLength};
   return cid;
 }
 
-// export const encodeCar = (root, blocks) => {
-//   const { writer, out } = CarWriter.create([root]);
-//   pipe(iterate(blocks), {
-//     write: block =>
-//       writer.put({
-//         // @ts-expect-error - https://github.com/ipld/js-car/pull/97
-//         cid: block.cid,
-//         bytes: block.bytes,
-//       }),
-//     close: () => writer.close(),
-//   });
 
-//   return out;
-// };
+async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, markers) {
+  let links = [];
+  const fileLinks = [];
+  let secondaryLinks = [];
+
+  let inZipFile = false;
+  let lastChunk = null;
+  let currName = null;
+
+  const decoder = new TextDecoder();
+
+  const dirs = {};
+
+  const {ZIP, WARC_PAYLOAD, WARC_GROUP} = markers;
+
+  let file = UnixFS.createFileWriter(writer);
+
+  function getDirAndName(fullpath) {
+    const parts = fullpath.split("/");
+    const filename = parts.pop();
+    return [parts.join("/"), filename];
+  }
+
+  const waczDir = UnixFS.createDirectoryWriter(writer);
+
+  let count = 0;
+
+  for await (const chunk of warcIter) {
+    if (chunk === ZIP && !inZipFile) {
+      if (lastChunk) {
+        currName = decoder.decode(lastChunk);
+        console.log("name", currName);
+      }
+      inZipFile = true;
+
+      if (count) {
+        fileLinks.push(await file.close());
+        count = 0;
+        file = UnixFS.createFileWriter(writer);
+      }
+
+    } else if (chunk === ZIP && inZipFile) {
+
+      if (count) {
+        links.push(await file.close());
+        count = 0;
+        file = UnixFS.createFileWriter(writer);
+      }
+
+      let link;
+
+      if (secondaryLinks.length) {
+        if (links.length) {
+          throw new Error("invalid state, secondaryLinks + links?");
+        }
+        link = await concat(writer, secondaryLinks);
+        secondaryLinks = [];
+      } else {
+        link = await concat(writer, links);
+        links = [];
+      }
+
+      fileLinks.push(link);
+
+      const [dirName, filename] = getDirAndName(currName);
+      currName = null;
+
+      let dir;
+
+      if (!dirName) {
+        dir = waczDir;
+      } else {
+        if (!dirs[dirName]) {
+          dirs[dirName] = UnixFS.createDirectoryWriter(writer);
+        }
+        dir = dirs[dirName];
+      }
+
+      dir.set(filename, link);
+
+      inZipFile = false;
+    } else if (chunk === WARC_PAYLOAD || chunk === WARC_GROUP) {
+
+      if (!inZipFile) {
+        throw new Error("invalid state");
+      }
+
+      if (count) {
+        links.push(await file.close());
+        count = 0;
+        file = UnixFS.createFileWriter(writer);
+
+        if (chunk === WARC_GROUP) {
+          secondaryLinks.push(await concat(writer, links));
+          links = [];
+        }
+      }
+    } else if (chunk.length > 0) {
+      if (!inZipFile) {
+        lastChunk = chunk;
+      }
+      file.write(chunk);
+      count++;
+    }
+  }
+
+  fileLinks.push(await file.close());
+
+  for (const [name, dir] of Object.entries(dirs)) {
+    waczDir.set(name, await dir.close());
+  }
+
+  // for await (const chunk of iterate(waczContent)) {
+  //   if (chunk === splitMarker) {
+  //     links.push(await file.close());
+  //     file = UnixFS.createFileWriter(writer);
+  //   } else {
+  //     file.write(chunk);
+  //   }
+  // }
+
+  // const rootDir = UnixFS.createDirectoryWriter(writer);
+
+  // await ipfsWriteBuff(writer, "ui.js", uiContent, rootDir);
+  // await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
+  // await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
+
+  rootDir.set("webarchive", await waczDir.close());
+
+  rootDir.set(waczPath, await concat(writer, fileLinks));
+}
+
+async function concat(writer, links) {
+  //TODO: is this the right way to do this?
+  const {fileEncoder, hasher, linker} = writer.settings;
+  const advanced = fileEncoder.createAdvancedFile(links);
+  const bytes = fileEncoder.encode(advanced);
+  const hash = await hasher.digest(bytes);
+  const cid = linker.createLink(fileEncoder.code, hash);
+  const block = { bytes, cid };
+  writer.writer.write(block);
+
+  const link = {
+    cid,
+    contentByteLength: fileEncoder.cumulativeContentByteLength(links),
+    dagByteLength: fileEncoder.cumulativeDagByteLength(bytes, links),
+  };
+
+  return link;
+}
 
 export const iterate = async function* (stream) {
   const reader = stream.getReader();

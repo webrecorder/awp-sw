@@ -94,10 +94,11 @@ class ExtAPI extends API
   async startIpfsAdd(event, request, collId) {
     const {coll, body} = await this.prepareColl(collId, request);
 
-    //const id = randomId();
     const client = await self.clients.get(event.clientId);
-    //this.ipfsTasks[id] = 
-    new IPFSAdd(collId, coll, client, this.downloaderOpts, this.collections).run(body);
+
+    const opts = {...this.downloaderOpts, customSplits: body.customSplits};
+
+    new IPFSAdd(collId, coll, client, opts, this.collections).run(body);
 
     return {collId};
   }
