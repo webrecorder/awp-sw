@@ -1,0 +1,31 @@
+{
+  "name": "awp-core",
+  "type": "module",
+  "main": "index.js",
+  "version": "0.1.0",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "@ipld/car": "^5.0.1",
+    "@ipld/unixfs": "^2.0.0",
+    "@webrecorder/wabac": "^2.13.8",
+    "client-zip": "^2.3.0",
+    "hash-wasm": "^4.9.0",
+    "idb": "^7.1.1",
+    "p-queue": "^7.3.0",
+    "querystring-es3": "^0.2.1",
+    "url": "^0.11.0",
+    "uuid": "^9.0.0",
+    "warcio": "^1.6.1"
+  },
+  "scripts": {
+    "build": "webpack --mode production",
+    "build-dev": "webpack --mode development",
+    "start-dev": "webpack serve --mode development --port 10001 --output-path ./dist --static ${PWD}",
+    "lint": "eslint ./src webpack.config.js"
+  },
+  "devDependencies": {
+    "raw-loader": "^4.0.2",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^5.0.0"
+  }
+}
