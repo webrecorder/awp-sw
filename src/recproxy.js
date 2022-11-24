@@ -21,6 +21,7 @@ class RecProxy extends ArchiveDB
 
     this.pageId = randomId();
     this.isNew = true;
+    this.firstPageOnly = config.extraConfig.firstPageOnly || false;
 
     //this.cookie = "";
   }
@@ -84,7 +85,9 @@ class RecProxy extends ArchiveDB
 
     if (request.mode === "navigate") {
       this.pageId = randomId();
-      this.isNew = true;
+      if (!this.firstPageOnly) {
+        this.isNew = true;
+      }
     }
 
     const pageId = this.pageId;

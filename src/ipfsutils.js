@@ -123,9 +123,18 @@ export async function ipfsGenerateCar(writable, waczPath, waczContent, swContent
   const htmlContent = getReplayHtml(waczPath, replayOpts);
 
   await ipfsWriteBuff(writer, "ui.js", uiContent, rootDir);
-  await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
+
+  if (replayOpts.showEmbed) {
+    const replayDir = UnixFS.createDirectoryWriter(writer);
+    await ipfsWriteBuff(writer, "sw.js", swContent, replayDir);
+    await rootDir.set("replay", await replayDir.close());
+  } else {
+    await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
+  }
+
   await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
   await ipfsWriteBuff(writer, waczPath, iterate(waczContent), rootDir);
+
 
   const {cid} = await rootDir.close();
 
@@ -218,10 +227,9 @@ function getReplayHtml(waczPath, replayOpts = {}) {
       }
     </style>
   </head>
-  <body>
-    ${showEmbed ? `
-    <replay-web-page replayBase="./" deepLink="true" url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` :
-    `<replay-app-main source="${waczPath}"></replay-app-main>`
+  <body>${showEmbed ? `
+    <replay-web-page deepLink="true" url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>
 </html>`;
