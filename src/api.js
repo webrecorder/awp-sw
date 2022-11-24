@@ -77,31 +77,33 @@ class ExtAPI extends API
       return {error: "collection_not_found"};
     }
 
+    let body;
+
     try {
-      const { ipfsDaemonUrl } = await request.json();
-      if (ipfsDaemonUrl) {
-        setAutoIPFSUrl(ipfsDaemonUrl);
+      body = await request.json();
+      if (body.ipfsDaemonUrl) {
+        setAutoIPFSUrl(body.ipfsDaemonUrl);
       }
     } catch (e) {
-      // ignore
+      body = {};
     }
 
-    return coll;
+    return {coll, body};
   }
 
   async startIpfsAdd(event, request, collId) {
-    const coll = await this.prepareColl(collId, request);
+    const {coll, body} = await this.prepareColl(collId, request);
 
     //const id = randomId();
     const client = await self.clients.get(event.clientId);
     //this.ipfsTasks[id] = 
-    new IPFSAdd(collId, coll, client, this.downloaderOpts, this.collections).run();
+    new IPFSAdd(collId, coll, client, this.downloaderOpts, this.collections).run(body);
 
     return {collId};
   }
 
   async ipfsRemove(request, collId) {
-    const coll = await this.prepareColl(collId, request);
+    const {coll} = await this.prepareColl(collId, request);
 
     if (await ipfsRemove(coll)) {
       await this.collections.updateMetadata(coll.name, coll.config.metadata);
@@ -170,9 +172,9 @@ class IPFSAdd
     this.size = 0;
   }
 
-  async run() {
-    const ipfsURL = await ipfsAdd(this.coll, this.opts, (size) => this.progress(size));
-    const result = {ipfsURL};
+  async run(replayOpts) {
+    const {url, cid} = await ipfsAdd(this.coll, this.opts, replayOpts, (size) => this.progress(size));
+    const result = {cid, ipfsURL: url};
 
     if (this.client) {
       this.client.postMessage({

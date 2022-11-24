@@ -13,7 +13,7 @@ export async function setAutoIPFSUrl(url) {
   autoipfsOpts.daemonURL = url;
 }
 
-export async function ipfsAdd(coll, downloaderOpts = {}, progress = null) {
+export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progress = null) {
   const autoipfs = await initAutoIPFS(autoipfsOpts);
 
   const filename = "webarchive.wacz";
@@ -43,11 +43,11 @@ export async function ipfsAdd(coll, downloaderOpts = {}, progress = null) {
 
   const { readable, writable } = new TransformStream(
     {},
-    UnixFS.withCapacity()
+    UnixFS.withCapacity(capacity)
   );
 
-  const swContent = await fetchBuffer("sw.js");
-  const uiContent = await fetchBuffer("ui.js");
+  const swContent = await fetchBuffer("sw.js", replayOpts.replayBaseUrl);
+  const uiContent = await fetchBuffer("ui.js", replayOpts.replayBaseUrl);
 
   let url, cid;
 
@@ -63,19 +63,21 @@ export async function ipfsAdd(coll, downloaderOpts = {}, progress = null) {
       })
     );
 
-  ipfsAddWithReplay( 
+  ipfsGenerateCar( 
     writable, 
     dlResponse.filename, dlResponse.body,
-    swContent, uiContent
+    swContent, uiContent, replayOpts
   );
 
   await p;
 
-  coll.config.metadata.ipfsPins.push({cid: cid.toString(), url});
+  const res = {cid: cid.toString(), url};
+
+  coll.config.metadata.ipfsPins.push(res);
 
   console.log("ipfs cid added " + url);
 
-  return url;
+  return res;
 }
 
 export async function ipfsRemove(coll) {
@@ -90,8 +92,8 @@ export async function ipfsRemove(coll) {
   return false;
 }
 
-async function fetchBuffer(filename) {
-  const resp = await fetch(new URL(filename, self.location.href).href);
+async function fetchBuffer(filename, replayBaseUrl = self.location.href) {
+  const resp = await fetch(new URL(filename, replayBaseUrl).href);
 
   return new Uint8Array(await resp.arrayBuffer());
 }
@@ -110,7 +112,7 @@ async function ipfsWriteBuff(writer, name, content, dir) {
 }
 
 // ===========================================================================
-export async function ipfsAddWithReplay(writable, waczPath, waczContent, swContent, uiContent) {
+export async function ipfsGenerateCar(writable, waczPath, waczContent, swContent, uiContent, replayOpts) {
 
   const writer = UnixFS.createWriter({ writable });
 
@@ -118,19 +120,7 @@ export async function ipfsAddWithReplay(writable, waczPath, waczContent, swConte
 
   const encoder = new TextEncoder();
 
-  const htmlContent = `
-<!doctype html>
-<html class="no-overflow">
-<head>
-  <title>ReplayWeb.page</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="./ui.js"></script>
-</head>
-<body>
-  <replay-app-main source="${waczPath}"></replay-app-main>
-</body>
-</html>`;
+  const htmlContent = getReplayHtml(waczPath, replayOpts);
 
   await ipfsWriteBuff(writer, "ui.js", uiContent, rootDir);
   await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
@@ -205,6 +195,36 @@ export async function encodeBlocks(blocks, root) {
   const roots = root != null ? [root] : [];
   console.log("chunks", chunks.length);
   return Object.assign(new Blob(chunks), { version: 1, roots });
+}
+
+function getReplayHtml(waczPath, replayOpts = {}) {
+  const { showEmbed, pageUrl, pageTitle } = replayOpts;
+
+  return `
+<!doctype html>
+  <html class="no-overflow">
+  <head>
+    <title>${pageTitle || "ReplayWeb.page"}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="./ui.js"></script>
+    <style>
+      html, body, replay-web-page, replay-app-main {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        margin: 0px;
+        padding: 0px;
+      }
+    </style>
+  </head>
+  <body>
+    ${showEmbed ? `
+    <replay-web-page replayBase="./" deepLink="true" url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` :
+    `<replay-app-main source="${waczPath}"></replay-app-main>`
+}
+  </body>
+</html>`;
 }
 
 

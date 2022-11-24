@@ -1,22 +1,18 @@
-const fallback2 = {
-  "stream": require.resolve("stream-browserify"),
-  "querystring": require.resolve("querystring-es3"),
-  "url": require.resolve("url/")
-};
+/*eslint-env node */
 
 const fallback = {"stream": false, "querystring": false, "url": false};
 
 module.exports = {
-    resolve: { fallback },
+  resolve: { fallback },
     
-    module: {
-      rules: [
-        {
-          test: /wombat.js|wombatWorkers.js|index.html$/i,
-          use: ["raw-loader"],
-        }
-      ]
-    },
+  module: {
+    rules: [
+      {
+        test: /wombat.js|wombatWorkers.js|index.html$/i,
+        use: ["raw-loader"],
+      }
+    ]
+  },
 };
 
 
