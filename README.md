@@ -1,4 +1,4 @@
-## ArchiveWeb.page Service Worker
+## ArchiveWeb.page Service Worker (awp-sw)
 
 This library has been factored out of [ArchiveWeb.page](https://webrecorder/archiveweb.page) and represents the core service worker implementation
 necessarily for high-fidelity web archiving.
@@ -12,6 +12,10 @@ It extends the [wabac.js](https://webrecorder/wabac.js) library and includes uti
 
 
 ## Usage
+
+```
+yarn install @webrecorder/awp-sw
+```
 
 The library is designed to be used as part of ArchiveWeb.page or other tools that use web archives. It is designed to be used and extended
 as part of the service worker build.
