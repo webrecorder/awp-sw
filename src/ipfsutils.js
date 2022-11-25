@@ -25,7 +25,9 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     downloaderOpts.markers = {ZIP, WARC_PAYLOAD, WARC_GROUP};
   }
 
-  const dl = new Downloader({...downloaderOpts, coll, filename, gzip: false});
+  const gzip = replayOpts.gzip !== undefined ? replayOpts.gzip : true;
+
+  const dl = new Downloader({...downloaderOpts, coll, filename, gzip});
   const dlResponse = await dl.download(progress);
 
   if (!coll.config.metadata.ipfsPins) {
@@ -53,8 +55,16 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     UnixFS.withCapacity(capacity)
   );
 
-  const swContent = await fetchBuffer("sw.js", replayOpts.replayBaseUrl);
-  const uiContent = await fetchBuffer("ui.js", replayOpts.replayBaseUrl);
+  const swContent = await fetchBuffer("sw.js", replayOpts.replayBaseUrl || self.location.href);
+  const uiContent = await fetchBuffer("ui.js", replayOpts.replayBaseUrl || self.location.href);
+
+  let favicon = null;
+
+  try {
+    favicon = await fetchBuffer("https://replayweb.page/build/icon.png");
+  } catch (e) {
+    console.warn("Couldn't load favicon");
+  }
 
   let url, cid;
 
@@ -74,7 +84,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     writable, 
     dlResponse.filename, dlResponse.body,
     swContent, uiContent, replayOpts,
-    downloaderOpts.markers,
+    downloaderOpts.markers, favicon,
   );
 
   await p;
@@ -90,8 +100,14 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
 export async function ipfsRemove(coll) {
   if (coll.config.metadata.ipfsPins) {
-    //TODO: need remove support in auto-js-ipfs
-    //await ipfsUnpinAll(this, coll.config.metadata.ipfsPins);
+
+    for (const {url} of coll.config.metadata.ipfsPins) {
+      try {
+        await autoipfs.clear(url);
+      } catch (e) {
+        console.log("Removal from this IPFS backend not yet implemented");
+      }
+    }
 
     coll.config.metadata.ipfsPins = null;
     return true;
@@ -100,7 +116,7 @@ export async function ipfsRemove(coll) {
   return false;
 }
 
-async function fetchBuffer(filename, replayBaseUrl = self.location.href) {
+async function fetchBuffer(filename, replayBaseUrl) {
   const resp = await fetch(new URL(filename, replayBaseUrl).href);
 
   return new Uint8Array(await resp.arrayBuffer());
@@ -121,7 +137,7 @@ async function ipfsWriteBuff(writer, name, content, dir) {
 
 // ===========================================================================
 export async function ipfsGenerateCar(writable, waczPath, 
-  waczContent, swContent, uiContent, replayOpts, markers) {
+  waczContent, swContent, uiContent, replayOpts, markers, favicon) {
 
   const writer = UnixFS.createWriter({ writable });
 
@@ -139,6 +155,10 @@ export async function ipfsGenerateCar(writable, waczPath,
     await rootDir.set("replay", await replayDir.close());
   } else {
     await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
+  }
+
+  if (favicon) {
+    await ipfsWriteBuff(writer, "favicon.ico", favicon, rootDir);
   }
 
   await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
@@ -354,7 +374,7 @@ export async function encodeBlocks(blocks, root) {
 }
 
 function getReplayHtml(waczPath, replayOpts = {}) {
-  const { showEmbed, pageUrl, pageTitle } = replayOpts;
+  const { showEmbed, pageUrl, pageTitle, deepLink } = replayOpts;
 
   return `
 <!doctype html>
@@ -375,7 +395,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page deepLink="true" url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? `deepLink="true" ` : ""}url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>

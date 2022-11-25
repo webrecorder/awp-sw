@@ -3,7 +3,7 @@
   "browser": "dist/sw.js",
   "main": "index.js",
   "type": "module",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.js"
@@ -11,7 +11,7 @@
   "dependencies": {
     "@ipld/car": "^5.0.1",
     "@ipld/unixfs": "^2.0.0",
-    "@webrecorder/wabac": "^2.13.8",
+    "@webrecorder/wabac": "^2.13.9",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
     "idb": "^7.1.1",
