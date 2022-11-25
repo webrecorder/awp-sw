@@ -99,6 +99,8 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 }
 
 export async function ipfsRemove(coll) {
+  const autoipfs = await initAutoIPFS(autoipfsOpts);
+
   if (coll.config.metadata.ipfsPins) {
 
     for (const {url} of coll.config.metadata.ipfsPins) {
@@ -395,7 +397,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? `deepLink="true" ` : ""}url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>
