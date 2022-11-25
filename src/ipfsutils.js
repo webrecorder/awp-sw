@@ -18,7 +18,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   const filename = "webarchive.wacz";
 
-  if (downloaderOpts.customSplits) {
+  if (replayOpts.customSplits) {
     const ZIP = new Uint8Array([]);
     const WARC_PAYLOAD = new Uint8Array([]);
     const WARC_GROUP = new Uint8Array([]);
@@ -397,7 +397,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" loading="${loading || ''}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>

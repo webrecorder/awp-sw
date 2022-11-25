@@ -28,10 +28,10 @@ class ExtAPI extends API
     };
   }
 
-  get downloaderOpts() {
+  downloaderOpts() {
     const softwareString = this.softwareString;
 
-    const signer = new Signer(softwareString);
+    const signer = new Signer(softwareString, {cacheSig: true});
 
     return {softwareString, signer};
   }
@@ -50,7 +50,7 @@ class ExtAPI extends API
       const format = params._query.get("format") || "wacz";
       let filename = params._query.get("filename");
 
-      const dl = new Downloader({...this.downloaderOpts, coll, format, filename, pageList});
+      const dl = new Downloader({...this.downloaderOpts(), coll, format, filename, pageList});
       return dl.download();
     }
 
@@ -96,9 +96,11 @@ class ExtAPI extends API
 
     const client = await self.clients.get(event.clientId);
 
-    const opts = {...this.downloaderOpts, customSplits: body.customSplits};
+    const p = runIPFSAdd(collId, coll, client, this.downloaderOpts(), this.collections, body);
 
-    new IPFSAdd(collId, coll, client, opts, this.collections).run(body);
+    if (event.waitUntil) {
+      event.waitUntil(p);
+    }
 
     return {collId};
   }
@@ -150,7 +152,7 @@ class ExtAPI extends API
   }
 
   async getPublicKey() {
-    const signer = new Signer();
+    const { signer } = this.downloaderOpts();
     const keys = await signer.loadKeys();
     if (!keys || !keys.public) {
       return {};
@@ -161,44 +163,27 @@ class ExtAPI extends API
 }
 
 // ===========================================================================
-class IPFSAdd
-{
-  constructor(collId, coll, client, opts, collections) {
-    this.collId = collId;
-    this.coll = coll;
-    this.client = client;
-    this.opts = opts;
-    this.collections = collections;
+async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
+  let size = 0;
 
-    this.size = 0;
-  }
-
-  async run(replayOpts) {
-    const {url, cid} = await ipfsAdd(this.coll, this.opts, replayOpts, (size) => this.progress(size));
-    const result = {cid, ipfsURL: url};
-
-    if (this.client) {
-      this.client.postMessage({
-        type: "ipfsAdd",
-        collId: this.collId,
-        size: this.size,
-        result
+  const sendMessage = (type, result = null) => {
+    if (client) {
+      client.postMessage({
+        type, collId, size, result
       });
     }
+  };
 
-    await this.collections.updateMetadata(this.coll.name, this.coll.config.metadata);
-  }
+  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize) => {
+    size += incSize;
+    sendMessage("ipfsProgress");
+  });
 
-  progress(incSize) {
-    this.size += incSize;
-    if (this.client) {
-      this.client.postMessage({
-        type: "ipfsProgress",
-        collId: this.collId,
-        size: this.size,
-      });
-    }
-  }
+  const result = {cid, ipfsURL: url};
+
+  sendMessage("ipfsAdd", result);
+
+  await collections.updateMetadata(coll.name, coll.config.metadata);
 }
 
 export { ExtAPI };

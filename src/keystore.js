@@ -59,13 +59,13 @@ export class KeyStore
   }
 }
 
-
 // ====================================================================
 export class Signer
 {
-  constructor(softwareString) {
+  constructor(softwareString, opts = {}) {
     this._store = new KeyStore();
     this.softwareString = softwareString || "ArchiveWeb.page";
+    this.cacheSig = opts.cacheSig;
   }
 
   close() {
@@ -112,13 +112,16 @@ export class Signer
       keyPair.publicKey = await crypto.subtle.importKey("spki", publicKey, ecdsaImportParams, true, ["verify"]);
     }
 
-    const data = new TextEncoder().encode(string);
+    let signature = this.cacheSig ? await this.loadSig(string) : null;
 
-    let signature = await crypto.subtle.sign(ecdsaSignParams, keyPair.privateKey, data);
+    if (!signature) {
+      const data = new TextEncoder().encode(string);
+      signature = await crypto.subtle.sign(ecdsaSignParams, keyPair.privateKey, data);
+      signature = encodeBase64(new Uint8Array(signature));
+      await this.saveSig(string, signature);
+    }
 
     //console.log("verify", await crypto.subtle.verify(ecdsaSignParams, keyPair.publicKey, signature, data));
-
-    signature = encodeBase64(new Uint8Array(signature));
 
     return {
       hash: string,
@@ -127,6 +130,15 @@ export class Signer
       created,
       software: this.softwareString
     };
+  }
+
+  async saveSig(id, sig) {
+    return await this._store.put({id, sig});
+  }
+
+  async loadSig(id) {
+    const res = await this._store.get(id);
+    return res && res.sig;
   }
 
   async saveKeys(keys, id = "_userkey") {
