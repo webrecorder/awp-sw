@@ -376,7 +376,7 @@ export async function encodeBlocks(blocks, root) {
 }
 
 function getReplayHtml(waczPath, replayOpts = {}) {
-  const { showEmbed, pageUrl, pageTitle, deepLink } = replayOpts;
+  const { showEmbed, pageUrl, pageTitle, deepLink, loading } = replayOpts;
 
   return `
 <!doctype html>
@@ -397,7 +397,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" loading="${loading || ''}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>
