@@ -2,18 +2,25 @@
 
 const webpack = require("webpack");
 
-const fallback = {"stream": false, "querystring": false, "url": false};
-
 const BANNER_TEXT = "'[name].js is part of the ArchiveWeb.page system (https://archiveweb.page) Copyright (C) 2020-2022, Webrecorder Software. Licensed under the Affero General Public License v3.'";
 
 
 module.exports = {
-  resolve: { fallback },
-
   output: {
     filename: "sw.js",
   },
   plugins: [
+    new webpack.NormalModuleReplacementPlugin(
+        /^node:*/,
+        (resource) => {
+          switch (resource.request) {
+            case "node:stream":
+              resource.request = "stream-browserify";
+              break;
+          }
+        },
+    ),
+
     new webpack.BannerPlugin(BANNER_TEXT),
   ],
     
