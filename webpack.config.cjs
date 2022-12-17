@@ -2,7 +2,7 @@
 
 const webpack = require("webpack");
 
-const BANNER_TEXT = "'[name].js is part of the ArchiveWeb.page system (https://archiveweb.page) Copyright (C) 2020-2022, Webrecorder Software. Licensed under the Affero General Public License v3.'";
+const BANNER_TEXT = `'[name].js is part of the ArchiveWeb.page system (https://archiveweb.page) Copyright (C) 2020-${new Date().getFullYear()}, Webrecorder Software. Licensed under the Affero General Public License v3.'`;
 
 
 module.exports = {
@@ -11,14 +11,14 @@ module.exports = {
   },
   plugins: [
     new webpack.NormalModuleReplacementPlugin(
-        /^node:*/,
-        (resource) => {
-          switch (resource.request) {
-            case "node:stream":
-              resource.request = "stream-browserify";
-              break;
-          }
-        },
+      /^node:*/,
+      (resource) => {
+        switch (resource.request) {
+        case "node:stream":
+          resource.request = "stream-browserify";
+          break;
+        }
+      },
     ),
 
     new webpack.BannerPlugin(BANNER_TEXT),
