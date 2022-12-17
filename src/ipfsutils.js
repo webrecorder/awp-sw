@@ -4,7 +4,6 @@ import { Downloader } from "./downloader.js";
 import * as UnixFS from "@ipld/unixfs";
 import { CarWriter } from "@ipld/car";
 import Queue from "p-queue";
-import { Web3StorageAPI } from "auto-js-ipfs";
 
 // eslint-disable-next-line no-undef
 const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__};
@@ -38,7 +37,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
   let shardSize;
   let capacity;
 
-  if (autoipfs instanceof Web3StorageAPI) {
+  if (autoipfs.type === "web3.storage") {
     // for now, web3storage only allows a single-shard uploads, so set this high.
     concur = 1;
     shardSize = 1024 * 1024 * 10000;
@@ -341,13 +340,6 @@ export const iterate = async function* (stream) {
     }
   }
 };
-
-// const pipe = async (source, writer) => {
-//   for await (const item of source) {
-//     writer.write(item);
-//   }
-//   return await writer.close();
-// };
 
 export async function encodeBlocks(blocks, root) {
   // @ts-expect-error
