@@ -6,7 +6,7 @@ import { postToGetUrl } from "warcio";
 
 
 // ===========================================================================
-class RecProxy extends ArchiveDB
+export class RecProxy extends ArchiveDB
 {
   constructor(config, collLoader) {
     super(config.dbname);
@@ -23,7 +23,22 @@ class RecProxy extends ArchiveDB
     this.isNew = true;
     this.firstPageOnly = config.extraConfig.firstPageOnly || false;
 
-    //this.cookie = "";
+    this.counter = 0;
+  }
+
+  _initDB(db, oldV, newV, tx) {
+    super._initDB(db, oldV, newV, tx);
+    db.createObjectStore("rec");
+  }
+
+  async decCounter() {
+    this.counter--;
+    //console.log("rec counter", this.counter);
+    await this.db.put("rec", this.counter, "numPending");
+  }
+
+  async getCounter() {
+    return await this.db.get("rec", "numPending");
   }
 
   async getResource(request, prefix) {
@@ -35,9 +50,15 @@ class RecProxy extends ArchiveDB
       req = request.request;
     }
 
-    request.headers["User-Agent"] = "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36";
+    let response = null;
 
-    const response = await this.liveProxy.getResource(request, prefix);
+    try {
+      this.counter++;
+      response = await this.liveProxy.getResource(request, prefix);
+    } catch (e) {
+      await this.decCounter();
+      return null;
+    }
 
     //this.cookie = response.headers.get("x-wabac-preset-cookie");
 
@@ -45,11 +66,12 @@ class RecProxy extends ArchiveDB
     if (!this.recordProxied && this.liveProxy.hostProxy) {
       const parsedUrl = new URL(request.url);
       if (this.liveProxy.hostProxy[parsedUrl.host]) {
+        await this.decCounter();
         return response;
       }
     }
 
-    this.doRecord(response, req);
+    this.doRecord(response, req).finally(() => this.decCounter());
 
     return response;
   }
