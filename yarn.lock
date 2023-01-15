@@ -41,23 +41,23 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
-"@ipld/car@^5.0.1":
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/@ipld/car/-/car-5.0.1.tgz#078e8dc81be747dfcf7126c28429b26539d66d15"
-  integrity sha512-YPXr1TztVmTPE4MerjKpFMuIll73MqvEakzWDMqj4uGJnwkY+tE0SlBGmqkMSofOgVMQAxZ6JtuRA93WlTzb8w==
+"@ipld/car@^5.0.3":
+  version "5.0.3"
+  resolved "https://registry.yarnpkg.com/@ipld/car/-/car-5.0.3.tgz#9c82961aaa4ffa2d941f79fd243f8bb9e8e9dd13"
+  integrity sha512-omPSY65OSVmlFGJDn2xbd75o71GNHmgP5u2dQ5fITc0X/QqJZVfZi95NCs8oa1wWhjkaK3RTswRSg2iNqFUSAg==
   dependencies:
-    "@ipld/dag-cbor" "^8.0.0"
+    "@ipld/dag-cbor" "^9.0.0"
     cborg "^1.9.0"
-    multiformats "^10.0.2"
+    multiformats "^11.0.0"
     varint "^6.0.0"
 
-"@ipld/dag-cbor@^8.0.0":
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/@ipld/dag-cbor/-/dag-cbor-8.0.0.tgz#92ab1deac7cee9c9277a42a1a362a6447b3d3280"
-  integrity sha512-VfedC21yAD/ZIahcrHTeMcc17kEVRlCmHQl0JY9/Rwbd102v0QcuXtBN8KGH8alNO82S89+H6MM/hxP85P4Veg==
+"@ipld/dag-cbor@^9.0.0":
+  version "9.0.0"
+  resolved "https://registry.yarnpkg.com/@ipld/dag-cbor/-/dag-cbor-9.0.0.tgz#51902f7d19ce2203b04e4cfe0514936b82d09d91"
+  integrity sha512-zdsiSiYDEOIDW7mmWOYWC9gukjXO+F8wqxz/LfN7iSwTfIyipC8+UQrCbPupFMRb/33XQTZk8yl3My8vUQBRoA==
   dependencies:
-    cborg "^1.6.0"
-    multiformats "^10.0.2"
+    cborg "^1.10.0"
+    multiformats "^11.0.0"
 
 "@ipld/dag-pb@^2.1.18":
   version "2.1.18"
@@ -495,15 +495,15 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.0.tgz#f08ea194e01ed45379383a8886e8c85a65a5f26a"
   integrity sha512-Rumq5mHvGXamnOh3O8yLk1sjx8dB30qF1OeR6VC00DIR6SLJ4bwwUGKC4pE7qBFoQyyh0H9sAg3fikYgAqVR0w==
 
-"@webrecorder/wabac@^2.14.1":
-  version "2.14.1"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.14.1.tgz#dd7c92e4c5892cc6d865a3cb568b8f16eb6d9761"
-  integrity sha512-fADNPmUlqtwQA7jsomKjyTwMqjx6Le5YYLsyxHPVU1HzEIxzEh+7v0dazz3LYSjnPzlbjsG4jbB/jMlJtXncwg==
+"@webrecorder/wabac@^2.15.0":
+  version "2.15.0"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.15.0.tgz#fcbf2dbe3783a790d2c2e2cf40508650880385aa"
+  integrity sha512-4l88C76/UyvgiNtoV2lYoo4WuB2jtTDd7wyl7NcNHXpqA9XRc7h6p0fEurDTyMMX5JK8viRQ4ebuIC+SFQMoRQ==
   dependencies:
     "@peculiar/asn1-ecc" "^2.3.4"
     "@peculiar/asn1-schema" "^2.3.3"
     "@peculiar/x509" "^1.9.2"
-    "@webrecorder/wombat" "^3.4.2"
+    "@webrecorder/wombat" "^3.4.3"
     auto-js-ipfs "^2.1.0"
     base64-js "^1.5.1"
     brotli "^1.3.3"
@@ -523,10 +523,10 @@
     stream-browserify "^3.0.0"
     warcio "^2.0.1"
 
-"@webrecorder/wombat@^3.4.2":
-  version "3.4.2"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.4.2.tgz#fc7e6562af9c75e3a8c7b6c25bd8b36b4aef2f68"
-  integrity sha512-VAUavWeWC/KrU2DAy0CSxPm+eAzn5o9tTD04CadobqXExl0Wipbko3TWmLLXp5YdW7skPDu3b7U5MygB93C61g==
+"@webrecorder/wombat@^3.4.3":
+  version "3.4.3"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.4.3.tgz#d32c4a848d6fa3dc886ad9d9e7ee39f3909d3fb7"
+  integrity sha512-3cKSqyui1AK2PnKqNjPt+eJTBl3GWRsfTIzwaettUwr631nzJBvWv/gGnu0gP6rgvIe6YcqmEfWE/dUVhji9Mg==
   dependencies:
     warcio "^2.0.1"
 
@@ -676,7 +676,12 @@ caniuse-lite@^1.0.30001400:
   resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001434.tgz#ec1ec1cfb0a93a34a0600d37903853030520a4e5"
   integrity sha512-aOBHrLmTQw//WFa2rcF1If9fa3ypkC1wzqqiKHgfdrXTWcU8C4gKVZT77eQAPWN1APys3+uQ0Df07rKauXGEYA==
 
-cborg@^1.6.0, cborg@^1.9.0:
+cborg@^1.10.0:
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/cborg/-/cborg-1.10.0.tgz#0fe157961dd47b537ccb84dc9ba681de8b699013"
+  integrity sha512-/eM0JCaL99HDHxjySNQJLaolZFVdl6VA0/hEKIoiQPcQzE5LrG5QHdml0HaBt31brgB9dNe1zMr3f8IVrpotRQ==
+
+cborg@^1.9.0:
   version "1.9.6"
   resolved "https://registry.yarnpkg.com/cborg/-/cborg-1.9.6.tgz#bf90de6541d10735db878b60b4af824209b77435"
   integrity sha512-XmiD+NWTk9xg31d8MdXgW46bSZd95ELllxjbjdWGyHAtpTw+cf8iG3NibWgTWRnfWfxtcihVa5Pm0gchHiO3JQ==
@@ -1335,10 +1340,15 @@ ms@2.1.2:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-multiformats@^10.0.0, multiformats@^10.0.2:
+multiformats@^10.0.0:
   version "10.0.2"
   resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-10.0.2.tgz#e549ae833dac77edb534bece4adf1d1a214879f0"
   integrity sha512-nJEHLFOYhO4L+aNApHhCnWqa31FyqAHv9Q77AhmwU3KsM2f1j7tuJpCk5ByZ33smzycNCpSG5klNIejIyfFx2A==
+
+multiformats@^11.0.0:
+  version "11.0.0"
+  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-11.0.0.tgz#728dd8adfe4b169cd5b4b22d9dc1054d48bbe2d0"
+  integrity sha512-vqF8bmMtbxw9Zn3eTpk0OZQdBVmAT/+bTGwXb3C2qCNkp45aJMmkCDds3lrtObECWPf+KFjFtTOHkvCaT/c/xQ==
 
 multiformats@^9.5.4:
   version "9.9.0"
