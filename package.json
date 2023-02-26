@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git+https://github.com/webrecorder/awp-sw.git"
   },
-  "version": "0.2.1",
+  "version": "0.2.2",
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.js"
@@ -18,7 +18,7 @@
   "dependencies": {
     "@ipld/car": "^5.0.3",
     "@ipld/unixfs": "^2.0.0",
-    "@webrecorder/wabac": "github:webrecorder/wabac.js#add-x-proxy-host",
+    "@webrecorder/wabac": "^2.15.3",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
     "idb": "^7.1.1",
