@@ -588,7 +588,7 @@ class Downloader
 
     const info = {
       "software": this.softwareString,
-      "format": "WARC File Format 1.1",
+      "format": (warcVersion === "WARC/1.0") ? "WARC File Format 1.0" : "WARC File Format 1.1",
       "isPartOf": this.metadata.title || this.collId,
     };
 
