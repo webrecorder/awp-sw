@@ -25,7 +25,7 @@ class ExtAPI extends API
       "pageTitle": ["c/:coll/pageTitle", "POST"],
       "ipfsAdd": ["c/:coll/ipfs", "POST"],
       "ipfsRemove": ["c/:coll/ipfs", "DELETE"],
-      "ipfsDaemonUrl": ["ipfsDaemonUrl", "POST"],
+      "ipfsDaemonUrl": ["ipfs/daemonUrl", "POST"],
       "publicKey": "publicKey",
     };
   }
@@ -57,6 +57,9 @@ class ExtAPI extends API
 
     case "ipfsRemove":
       return await this.ipfsRemove(request, params.coll);
+
+    case "ipfsDaemonUrl":
+      return await this.setIPFSDaemonUrlFromBody(request);
 
     default:
       return await super.handleApi(request, params);
@@ -100,6 +103,12 @@ class ExtAPI extends API
       return {error: "collection_not_found"};
     }
 
+    const body = await this.setIPFSDaemonUrlFromBody(request);
+
+    return {coll, body};
+  }
+
+  async setIPFSDaemonUrlFromBody(request) {
     let body;
 
     try {
@@ -111,7 +120,7 @@ class ExtAPI extends API
       body = {};
     }
 
-    return {coll, body};
+    return body;
   }
 
   async startIpfsAdd(event, request, collId) {
@@ -188,17 +197,19 @@ class ExtAPI extends API
 // ===========================================================================
 async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
   let size = 0;
+  let totalSize = 0;
 
   const sendMessage = (type, result = null) => {
     if (client) {
       client.postMessage({
-        type, collId, size, result
+        type, collId, size, result, totalSize
       });
     }
   };
 
-  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize) => {
+  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize, _totalSize) => {
     size += incSize;
+    totalSize = _totalSize;
     sendMessage("ipfsProgress");
   });
 

@@ -1,13 +1,13 @@
 {
   "name": "@webrecorder/awp-sw",
   "browser": "dist/sw.js",
+  "version": "0.3.0",
   "main": "index.js",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/webrecorder/awp-sw.git"
   },
-  "version": "0.2.3",
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.js"
@@ -16,14 +16,14 @@
     "src/*"
   ],
   "dependencies": {
-    "@ipld/car": "^5.0.3",
-    "@ipld/unixfs": "^2.0.0",
+    "@ipld/car": "^5.1.1",
+    "@ipld/unixfs": "^2.1.1",
     "@webrecorder/wabac": "^2.16.1",
-    "auto-js-ipfs": "^2.1.1",
+    "auto-js-ipfs": "^2.2.0",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
     "idb": "^7.1.1",
-    "p-queue": "^7.3.0",
+    "p-queue": "^7.3.4",
     "uuid": "^9.0.0",
     "warcio": "^2.1.0"
   },

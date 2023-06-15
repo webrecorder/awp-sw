@@ -1,5 +1,6 @@
-import { initAutoIPFS } from "@webrecorder/wabac/src/ipfs.js";
 import { Downloader } from "./downloader.js";
+
+import { create as createAutoIPFS } from "auto-js-ipfs";
 
 import * as UnixFS from "@ipld/unixfs";
 import { CarWriter } from "@ipld/car";
@@ -8,14 +9,21 @@ import Queue from "p-queue";
 // eslint-disable-next-line no-undef
 const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__};
 
+let autoipfs = null;
+
 export async function setAutoIPFSUrl(url) {
+  if (autoipfsOpts.daemonURL !== url) {
+    autoipfs = null;
+  }
   autoipfsOpts.daemonURL = url;
 }
 
 export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progress = null) {
-  const autoipfs = await initAutoIPFS(autoipfsOpts);
+  if (!autoipfs) {
+    autoipfs = await createAutoIPFS(autoipfsOpts);
+  }
 
-  const filename = "webarchive.wacz";
+  const filename = replayOpts.filename || "webarchive.wacz";
 
   if (replayOpts.customSplits) {
     const ZIP = new Uint8Array([]);
@@ -27,7 +35,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
   const gzip = replayOpts.gzip !== undefined ? replayOpts.gzip : true;
 
   const dl = new Downloader({...downloaderOpts, coll, filename, gzip});
-  const dlResponse = await dl.download(progress);
+  const dlResponse = await dl.download();
 
   if (!coll.config.metadata.ipfsPins) {
     coll.config.metadata.ipfsPins = [];
@@ -44,9 +52,10 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     capacity = 1048576 * 200;
   } else {
     concur = 3;
-    shardSize = 1024 * 1024 * 10;
+    shardSize = 1024 * 1024 * 5;
     // use default capacity
-    capacity = undefined;
+    // capacity = undefined;
+    capacity = 1048576 * 200;
   }
 
   const { readable, writable } = new TransformStream(
@@ -65,6 +74,17 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     console.warn("Couldn't load favicon");
   }
 
+  const htmlContent = getReplayHtml(dlResponse.filename, replayOpts);
+
+  let totalSize = 0;
+
+  if (coll.config && coll.config.metadata && coll.config.metadata.size) {
+    totalSize = coll.config.metadata.size +
+    swContent.length + uiContent.length + favicon.length + htmlContent.length;
+  }
+
+  progress(0, totalSize);
+
   let url, cid;
 
   const p = readable
@@ -73,8 +93,13 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     .pipeTo(
       new WritableStream({
         write: (res) => {
-          url = res.url;
-          cid = res.cid;
+          if (res.url && res.cid) {
+            url = res.url;
+            cid = res.cid;
+          }
+          if (res.size) {
+            progress(res.size, totalSize);
+          }
         },
       })
     );
@@ -82,7 +107,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
   ipfsGenerateCar( 
     writable, 
     dlResponse.filename, dlResponse.body,
-    swContent, uiContent, replayOpts,
+    swContent, uiContent, htmlContent, replayOpts,
     downloaderOpts.markers, favicon,
   );
 
@@ -98,7 +123,9 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 }
 
 export async function ipfsRemove(coll) {
-  const autoipfs = await initAutoIPFS(autoipfsOpts);
+  if (!autoipfs) {
+    autoipfs = await createAutoIPFS(autoipfsOpts);
+  }
 
   if (coll.config.metadata.ipfsPins) {
 
@@ -138,15 +165,13 @@ async function ipfsWriteBuff(writer, name, content, dir) {
 
 // ===========================================================================
 export async function ipfsGenerateCar(writable, waczPath, 
-  waczContent, swContent, uiContent, replayOpts, markers, favicon) {
+  waczContent, swContent, uiContent, htmlContent, replayOpts, markers, favicon) {
 
   const writer = UnixFS.createWriter({ writable });
 
   const rootDir = UnixFS.createDirectoryWriter(writer);
 
   const encoder = new TextEncoder();
-
-  const htmlContent = getReplayHtml(waczPath, replayOpts);
 
   await ipfsWriteBuff(writer, "ui.js", uiContent, rootDir);
 
@@ -388,7 +413,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>
@@ -398,9 +423,6 @@ function getReplayHtml(waczPath, replayOpts = {}) {
 
 
 // Copied from https://github.com/web3-storage/w3protocol/blob/main/packages/upload-client/src/sharding.js
-
-const SHARD_SIZE = 1024 * 1024 * 10;
-const CONCURRENT_UPLOADS = 3;
 
 /**
  * Shard a set of blocks into a set of CAR files. The last block is assumed to
@@ -412,36 +434,45 @@ export class ShardingStream extends TransformStream {
   /**
    * @param {import('./types').ShardingOptions} [options]
    */
-  constructor(shardSize = SHARD_SIZE) {
+  constructor(shardSize) {
     /** @type {import('@ipld/unixfs').Block[]} */
     let shard = [];
     /** @type {import('@ipld/unixfs').Block[] | null} */
     let readyShard = null;
-    let size = 0;
+    let readySize = 0;
+
+    let currSize = 0;
 
     super({
       async transform(block, controller) {
         if (readyShard != null) {
-          controller.enqueue(await encodeBlocks(readyShard));
+          const blocks = await encodeBlocks(readyShard);
+          const size = readySize;
+          controller.enqueue({blocks, size});
           readyShard = null;
         }
-        if (shard.length && size + block.bytes.length > shardSize) {
+        if (shard.length && currSize + block.bytes.length > shardSize) {
           readyShard = shard;
+          readySize = currSize;
           shard = [];
-          size = 0;
+          currSize = 0;
         }
         shard.push(block);
-        size += block.bytes.length;
+        currSize += block.bytes.length;
       },
 
       async flush(controller) {
         if (readyShard != null) {
-          controller.enqueue(await encodeBlocks(readyShard));
+          const blocks = await encodeBlocks(readyShard);
+          const size = readySize;
+          controller.enqueue({blocks, size});
         }
 
         const rootBlock = shard.at(-1);
         if (rootBlock != null) {
-          controller.enqueue(await encodeBlocks(shard, rootBlock.cid));
+          const blocks = await encodeBlocks(shard, rootBlock.cid);
+          const size = currSize;
+          controller.enqueue({blocks, size});
         }
       },
     });
@@ -460,19 +491,20 @@ export class ShardingStream extends TransformStream {
  * @extends {TransformStream<import('./types').CARFile, import('./types').CARMetadata>}
  */
 export class ShardStoringStream extends TransformStream {
-  constructor(autoipfs, concurrency = CONCURRENT_UPLOADS) {
+  constructor(autoipfs, concurrency) {
     const queue = new Queue({ concurrency });
     const abortController = new AbortController();
     super({
-      async transform(car, controller) {
+      async transform({blocks, size}, controller) {
         void queue.add(
           async () => {
             try {
-              //const opts = { ...options, signal: abortController.signal };
-              //const cid = await add(conf, car, opts)
-              const resUrls = await autoipfs.uploadCAR(car);
+              const cid = blocks.roots[0];
 
-              controller.enqueue({cid: car.roots[0], url: resUrls[0]});
+              const resUrls = await autoipfs.uploadCAR(blocks);
+              const url = resUrls[0];
+
+              controller.enqueue({cid, url, size});
 
               //const { version, roots, size } = car
               //controller.enqueue({ version, roots, cid, size })
