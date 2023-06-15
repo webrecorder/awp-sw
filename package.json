@@ -7,7 +7,7 @@
     "type": "git",
     "url": "git+https://github.com/webrecorder/awp-sw.git"
   },
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.js"
@@ -18,13 +18,14 @@
   "dependencies": {
     "@ipld/car": "^5.0.3",
     "@ipld/unixfs": "^2.0.0",
-    "@webrecorder/wabac": "^2.15.3",
+    "@webrecorder/wabac": "^2.16.1",
+    "auto-js-ipfs": "^2.1.1",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
     "idb": "^7.1.1",
     "p-queue": "^7.3.0",
     "uuid": "^9.0.0",
-    "warcio": "^2.0.1"
+    "warcio": "^2.1.0"
   },
   "scripts": {
     "build": "webpack --mode production",

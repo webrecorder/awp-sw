@@ -495,20 +495,20 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.0.tgz#f08ea194e01ed45379383a8886e8c85a65a5f26a"
   integrity sha512-Rumq5mHvGXamnOh3O8yLk1sjx8dB30qF1OeR6VC00DIR6SLJ4bwwUGKC4pE7qBFoQyyh0H9sAg3fikYgAqVR0w==
 
-"@webrecorder/wabac@^2.15.3":
-  version "2.15.3"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.15.3.tgz#3328f8a0baeffb244e9e88424dbc1559ee2bcd84"
-  integrity sha512-WXYXbCkq79Bark9895wNKmx13mQCQLEYsjNyKLp/l7IbUbV3ZLDbumqIGAyFZvdbU/2B6O9L9YeoPdyHhCv/Gw==
+"@webrecorder/wabac@^2.16.1":
+  version "2.16.1"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.16.1.tgz#85c0bab4d45975d8ecfbdb57e5735a093b728410"
+  integrity sha512-sd2t96hEgDo2eP9M2nA4jYP0bFh3cslncvjrOC+5QnE2cpoEqyfZv6dm8dkhaAy0toOhwLzbbhzLaTb5kkh63g==
   dependencies:
     "@peculiar/asn1-ecc" "^2.3.4"
     "@peculiar/asn1-schema" "^2.3.3"
     "@peculiar/x509" "^1.9.2"
-    "@webrecorder/wombat" "^3.4.6"
-    auto-js-ipfs "^2.1.0"
+    "@webrecorder/wombat" "^3.5.2"
+    auto-js-ipfs "^2.1.1"
     base64-js "^1.5.1"
     brotli "^1.3.3"
     buffer "^6.0.3"
-    fast-xml-parser "^3.19.0"
+    fast-xml-parser "^4.2.4"
     hash-wasm "^4.9.0"
     http-link-header "^1.1.0"
     http-status-codes "^2.1.4"
@@ -521,12 +521,12 @@
     path-parser "^6.1.0"
     process "^0.11.10"
     stream-browserify "^3.0.0"
-    warcio "^2.0.1"
+    warcio "^2.1.0"
 
-"@webrecorder/wombat@^3.4.6":
-  version "3.4.6"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.4.6.tgz#48c8a03b1d47789fd799f6d9d49ec1ca6c610a1f"
-  integrity sha512-YMGKT78B6nDOIV8irIvIPtcWGOa44/FxFXN6LqeUM8WwJrvLL3YI+pXfKYd7GYJFULNqir3Ao+nSNNrjy9PtJg==
+"@webrecorder/wombat@^3.5.2":
+  version "3.5.2"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.5.2.tgz#46d69943f6872a30dcc1c97aebcaee7ddc746076"
+  integrity sha512-nFwdsbhDqzUqsV7iRYyPGs8u6ZTQCT1RJOh5Sw/d1VTtPK2LQx1fI+P03OgQuKhO1cDBlHvwR50/ohru6PJLCQ==
   dependencies:
     warcio "^2.0.1"
 
@@ -601,10 +601,10 @@ asn1js@^3.0.5:
     pvutils "^1.1.3"
     tslib "^2.4.0"
 
-auto-js-ipfs@^2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/auto-js-ipfs/-/auto-js-ipfs-2.1.0.tgz#b7dacdcae6522f5eb40a80bd89ba6db4ac99d174"
-  integrity sha512-fYFtpOb8aSWnFklOW9UKwQmhsF7malEKT9ic0z8ANoXo46tOY5mfIFQJM+UVVHZCQCFbovt0opbegMebXf5GmA==
+auto-js-ipfs@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/auto-js-ipfs/-/auto-js-ipfs-2.1.1.tgz#a4276e4ea1bde9426fc24555ee4523d3feed5c95"
+  integrity sha512-apr18WgwDAtxR46PmOGNtkj40IWQOYL3m1c8o0tq2xn0Hulj7B9nDPQQ9yQ+NwJdIUiFJGaCMDlUQd+BOiS/pQ==
 
 balanced-match@^1.0.0:
   version "1.0.2"
@@ -971,12 +971,12 @@ fast-levenshtein@^2.0.6:
   resolved "https://registry.yarnpkg.com/fast-levenshtein/-/fast-levenshtein-2.0.6.tgz#3d8a5c66883a16a30ca8643e851f19baa7797917"
   integrity sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==
 
-fast-xml-parser@^3.19.0:
-  version "3.21.1"
-  resolved "https://registry.yarnpkg.com/fast-xml-parser/-/fast-xml-parser-3.21.1.tgz#152a1d51d445380f7046b304672dd55d15c9e736"
-  integrity sha512-FTFVjYoBOZTJekiUsawGsSYV9QL0A+zDYCRj7y34IO6Jg+2IMYEtQa+bbictpdpV8dHxXywqU7C0gRDEOFtBFg==
+fast-xml-parser@^4.2.4:
+  version "4.2.4"
+  resolved "https://registry.yarnpkg.com/fast-xml-parser/-/fast-xml-parser-4.2.4.tgz#6e846ede1e56ad9e5ef07d8720809edf0ed07e9b"
+  integrity sha512-fbfMDvgBNIdDJLdLOwacjFAPYt67tr31H9ZhWSm45CDAxvd0I6WTlSOUo7K2P/K5sA5JgMKG64PI3DMcaFdWpQ==
   dependencies:
-    strnum "^1.0.4"
+    strnum "^1.0.5"
 
 fastest-levenshtein@^1.0.12:
   version "1.0.16"
@@ -1750,7 +1750,7 @@ strip-json-comments@^3.1.0, strip-json-comments@^3.1.1:
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-3.1.1.tgz#31f1281b3832630434831c310c01cccda8cbe006"
   integrity sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==
 
-strnum@^1.0.4:
+strnum@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/strnum/-/strnum-1.0.5.tgz#5c4e829fe15ad4ff0d20c3db5ac97b73c9b072db"
   integrity sha512-J8bbNyKKXl5qYcR36TIO8W3mVGVHrmmxsd5PAItGkmyzwJvybiw2IVq5nqd0i4LSNSkB/sx9VHllbfFdr9k1JA==
@@ -1878,6 +1878,16 @@ warcio@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.0.1.tgz#b806849b155b9b4667a066b9903c829999f08227"
   integrity sha512-+1AyOQJ3hjLkZwT0mIn2xGrg+RRbyu+fWXuCpU1A/VG25bVzrcsvj8T0lWToylJU4Xf9Q8W57Jej/iUxGxaHKg==
+  dependencies:
+    base32-encode "^2.0.0"
+    pako "^1.0.11"
+    uuid-random "^1.3.2"
+    yargs "^17.6.2"
+
+warcio@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.1.0.tgz#7feca0278d43008bd3dd41b51904470421eecb41"
+  integrity sha512-NQPvYkNZhZOqcFhAHn2iuFhEQmiUv+mE1KI8BD+J3emgkdNGRv3P1o+gBCE6Nxnzk7bEkBreoAjhZ4osl+Ps1Q==
   dependencies:
     base32-encode "^2.0.0"
     pako "^1.0.11"

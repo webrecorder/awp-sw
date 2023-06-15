@@ -209,7 +209,6 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
     if (chunk === ZIP && !inZipFile) {
       if (lastChunk) {
         currName = decoder.decode(lastChunk);
-        console.log("name", currName);
       }
       inZipFile = true;
 
