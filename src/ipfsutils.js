@@ -1,5 +1,6 @@
-import { initAutoIPFS } from "@webrecorder/wabac/src/ipfs.js";
 import { Downloader } from "./downloader.js";
+
+import { create as createAutoIPFS } from "auto-js-ipfs";
 
 import * as UnixFS from "@ipld/unixfs";
 import { CarWriter } from "@ipld/car";
@@ -8,14 +9,21 @@ import Queue from "p-queue";
 // eslint-disable-next-line no-undef
 const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__};
 
+let autoipfs = null;
+
 export async function setAutoIPFSUrl(url) {
+  if (autoipfsOpts.daemonURL !== url) {
+    autoipfs = null;
+  }
   autoipfsOpts.daemonURL = url;
 }
 
 export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progress = null) {
-  const autoipfs = await initAutoIPFS(autoipfsOpts);
+  if (!autoipfs) {
+    autoipfs = await createAutoIPFS(autoipfsOpts);
+  }
 
-  const filename = "webarchive.wacz";
+  const filename = replayOpts.filename || "webarchive.wacz";
 
   if (replayOpts.customSplits) {
     const ZIP = new Uint8Array([]);
@@ -44,9 +52,10 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     capacity = 1048576 * 200;
   } else {
     concur = 3;
-    shardSize = 1024 * 1024 * 10;
+    shardSize = 1024 * 1024 * 5;
     // use default capacity
-    capacity = undefined;
+    // capacity = undefined;
+    capacity = 1048576 * 200;
   }
 
   const { readable, writable } = new TransformStream(
@@ -73,8 +82,10 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     .pipeTo(
       new WritableStream({
         write: (res) => {
-          url = res.url;
-          cid = res.cid;
+          if (res.url && res.cid) {
+            url = res.url;
+            cid = res.cid;
+          }
         },
       })
     );
@@ -98,7 +109,9 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 }
 
 export async function ipfsRemove(coll) {
-  const autoipfs = await initAutoIPFS(autoipfsOpts);
+  if (!autoipfs) {
+    autoipfs = await createAutoIPFS(autoipfsOpts);
+  }
 
   if (coll.config.metadata.ipfsPins) {
 
@@ -388,7 +401,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
     </style>
   </head>
   <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""}url="${pageUrl}" loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
     <replay-app-main source="${waczPath}"></replay-app-main>`
 }
   </body>
