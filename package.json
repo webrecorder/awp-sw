@@ -1,13 +1,13 @@
 {
   "name": "@webrecorder/awp-sw",
   "browser": "dist/sw.js",
+  "version": "0.3.0",
   "main": "index.js",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/webrecorder/awp-sw.git"
   },
-  "version": "0.2.3",
   "license": "AGPL-3.0-or-later",
   "exports": {
     ".": "./src/index.js"
