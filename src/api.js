@@ -197,17 +197,19 @@ class ExtAPI extends API
 // ===========================================================================
 async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
   let size = 0;
+  let totalSize = 0;
 
   const sendMessage = (type, result = null) => {
     if (client) {
       client.postMessage({
-        type, collId, size, result
+        type, collId, size, result, totalSize
       });
     }
   };
 
-  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize) => {
+  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize, _totalSize) => {
     size += incSize;
+    totalSize = _totalSize;
     sendMessage("ipfsProgress");
   });
 
