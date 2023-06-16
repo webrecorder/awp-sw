@@ -414,7 +414,7 @@ function getReplayHtml(waczPath, replayOpts = {}) {
   </head>
   <body>${showEmbed ? `
     <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
-    <replay-app-main source="${waczPath}"></replay-app-main>`
+    <replay-app-main skipRuffle source="${waczPath}"></replay-app-main>`
 }
   </body>
 </html>`;
