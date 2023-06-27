@@ -80,7 +80,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   if (coll.config && coll.config.metadata && coll.config.metadata.size) {
     totalSize = coll.config.metadata.size +
-    swContent.length + uiContent.length + favicon.length + htmlContent.length;
+    swContent.length + uiContent.length + (favicon ? favicon.length : 0) + htmlContent.length;
   }
 
   progress(0, totalSize);
