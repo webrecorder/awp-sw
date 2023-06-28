@@ -89,9 +89,13 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   let url, cid;
 
+  let reject = null;
+
+  const p2 = new Promise((res, rej) => reject = rej);
+
   const p = readable
     .pipeThrough(new ShardingStream(shardSize))
-    .pipeThrough(new ShardStoringStream(autoipfs, concur))
+    .pipeThrough(new ShardStoringStream(autoipfs, concur, reject))
     .pipeTo(
       new WritableStream({
         write: (res) => {
@@ -113,7 +117,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     downloaderOpts.markers, favicon,
   );
 
-  await p;
+  await Promise.race([p, p2]);
 
   const res = {cid: cid.toString(), url};
 
@@ -135,7 +139,9 @@ export async function ipfsRemove(coll) {
       try {
         await autoipfs.clear(url);
       } catch (e) {
-        console.log("Removal from this IPFS backend not yet implemented");
+        console.log("Failed to unpin");
+        autoipfsOpts.daemonURL = null;
+        return false;
       }
     }
 
@@ -493,7 +499,7 @@ export class ShardingStream extends TransformStream {
  * @extends {TransformStream<import('./types').CARFile, import('./types').CARMetadata>}
  */
 export class ShardStoringStream extends TransformStream {
-  constructor(autoipfs, concurrency) {
+  constructor(autoipfs, concurrency, reject) {
     const queue = new Queue({ concurrency });
     const abortController = new AbortController();
     super({
@@ -513,6 +519,8 @@ export class ShardStoringStream extends TransformStream {
             } catch (err) {
               controller.error(err);
               abortController.abort(err);
+              autoipfsOpts.daemonURL = null;
+              reject(err);
             }
           },
           { signal: abortController.signal }

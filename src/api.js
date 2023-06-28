@@ -134,6 +134,12 @@ class ExtAPI extends API
       event.waitUntil(p);
     }
 
+    try {
+      await p;
+    } catch (e) {
+      return {error: "ipfs_not_available"};
+    }
+
     return {collId};
   }
 
