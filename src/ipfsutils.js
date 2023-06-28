@@ -63,13 +63,15 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     UnixFS.withCapacity(capacity)
   );
 
-  const swContent = await fetchBuffer("sw.js", replayOpts.replayBaseUrl || self.location.href);
-  const uiContent = await fetchBuffer("ui.js", replayOpts.replayBaseUrl || self.location.href);
+  const baseUrl = replayOpts.replayBaseUrl || self.location.href;
+
+  const swContent = await fetchBuffer("sw.js", baseUrl);
+  const uiContent = await fetchBuffer("ui.js", baseUrl);
 
   let favicon = null;
 
   try {
-    favicon = await fetchBuffer("https://replayweb.page/build/icon.png");
+    favicon = await fetchBuffer("icon.png", baseUrl);
   } catch (e) {
     console.warn("Couldn't load favicon");
   }
@@ -80,7 +82,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   if (coll.config && coll.config.metadata && coll.config.metadata.size) {
     totalSize = coll.config.metadata.size +
-    swContent.length + uiContent.length + favicon.length + htmlContent.length;
+    swContent.length + uiContent.length + (favicon ? favicon.length : 0) + htmlContent.length;
   }
 
   progress(0, totalSize);
