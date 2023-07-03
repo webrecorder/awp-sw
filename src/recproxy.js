@@ -64,7 +64,7 @@ export class RecProxy extends ArchiveDB
 
     // don't record content proxied from specified hosts
     if (!this.recordProxied && this.liveProxy.hostProxy) {
-      const parsedUrl = new URL(request.url);
+      const parsedUrl = new URL(response.url);
       if (this.liveProxy.hostProxy[parsedUrl.host]) {
         await this.decCounter();
         return response;
