@@ -1,7 +1,7 @@
 {
   "name": "@webrecorder/awp-sw",
   "browser": "dist/sw.js",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "main": "index.js",
   "type": "module",
   "repository": {
