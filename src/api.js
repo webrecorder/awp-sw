@@ -101,25 +101,33 @@ class ExtAPI extends API
 
     const prevUpload = uploading.get(params.coll);
 
+    const {url, headers, abortUpload} = await request.json();
+
     if (prevUpload && prevUpload.status === "uploading") {
+      if (abortUpload && prevUpload.abort) {
+        prevUpload.abort();
+        return {aborted: true};
+      }
       return {error: "already_uploading"};
+    } else if (abortUpload) {
+      return {error: "not_uploading"};
     }
 
     const dl = await this.getDownloader(params);
     const dlResp = await dl.download();
     const filename = dlResp.filename;
 
-    //const client = await self.clients.get(event.clientId);
+    const abort = new AbortController();
+    const signal = abort.signal;
 
-    const counter = new CountingStream(dl.metadata.size, params.coll);
+    const counter = new CountingStream(dl.metadata.size, abort);
 
     const body = dlResp.body.pipeThrough(counter.transformStream());
 
     try {
-      const {url, headers} = await request.json();
       const urlObj = new URL(url);
       urlObj.searchParams.set("name", filename);
-      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body});
+      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body, signal});
       uploading.set(params.coll, counter);
       if (event.waitUntil) {
         event.waitUntil(this.uploadFinished(fetchPromise, params.coll, dl.metadata, filename, counter));
@@ -140,13 +148,19 @@ class ExtAPI extends API
 
       metadata.lastUploadTime = new Date().getTime();
       metadata.lastUploadId = json.id;
+      if (!metadata.mtime) {
+        metadata.mtime = metadata.lastUploadTime;
+      }
+      if (!metadata.ctime) {
+        metadata.ctime = metadata.lastUploadTime;
+      }
       await this.collections.updateMetadata(collId, metadata);
       counter.status = "done";
 
     } catch (e) {
       console.log(`Upload failed for ${filename} ${collId}`);
       console.log(e);
-      counter.status = "failed";
+      counter.status = counter.aborted ? "aborted" : "failed";
     }
   }
 
@@ -325,10 +339,19 @@ async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
 // ===========================================================================
 class CountingStream
 {
-  constructor(totalSize) {
+  constructor(totalSize, abort) {
     this.totalSize = totalSize || 0;
     this.status = "uploading";
     this.size = 0;
+    this._abort = abort;
+    this.aborted = false;
+  }
+
+  abort() {
+    if (this._abort) {
+      this._abort.abort();
+      this.aborted = true;
+    }
   }
 
   transformStream() {
@@ -341,7 +364,7 @@ class CountingStream
 
       transform(chunk, controller) {
         counterStream.size += chunk.length;
-        console.log(`Uploaded: ${counterStream.size}`);
+        //console.log(`Uploaded: ${counterStream.size}`);
         controller.enqueue(chunk);
       }
     });
