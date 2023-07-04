@@ -99,7 +99,9 @@ class ExtAPI extends API
   async handleUpload(params, request, event) {
     const uploading = this.uploading;
 
-    if (uploading.has(params.coll)) {
+    const prevUpload = uploading.get(params.coll);
+
+    if (prevUpload && prevUpload.status === "uploading") {
       return {error: "already_uploading"};
     }
 
@@ -107,25 +109,29 @@ class ExtAPI extends API
     const dlResp = await dl.download();
     const filename = dlResp.filename;
 
-    const counter = new CountingStream(dl.metadata.size);
+    //const client = await self.clients.get(event.clientId);
+
+    const counter = new CountingStream(dl.metadata.size, params.coll);
 
     const body = dlResp.body.pipeThrough(counter.transformStream());
 
     try {
       const {url, headers} = await request.json();
-      const fetchPromise = fetch(`${url}?name=${filename}`, {method: "PUT", headers, duplex: "half", body});
+      const urlObj = new URL(url);
+      urlObj.searchParams.set("name", filename);
+      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body});
       uploading.set(params.coll, counter);
       if (event.waitUntil) {
-        event.waitUntil(this.uploadFinished(fetchPromise, params.coll, dl.metadata, filename));
+        event.waitUntil(this.uploadFinished(fetchPromise, params.coll, dl.metadata, filename, counter));
       }
       return {uploading: true};
     } catch (e) {
-      uploading.remove(params.coll);
+      uploading.delete(params.coll);
       return {error: "upload_failed", details: e.toString()};
     }
   }
 
-  async uploadFinished(fetchPromise, collId, metadata, filename) {
+  async uploadFinished(fetchPromise, collId, metadata, filename, counter) {
     try {
       const resp = await fetchPromise;
       const json = await resp.json();
@@ -135,24 +141,40 @@ class ExtAPI extends API
       metadata.lastUploadTime = new Date().getTime();
       metadata.lastUploadId = json.id;
       await this.collections.updateMetadata(collId, metadata);
+      counter.status = "done";
 
     } catch (e) {
       console.log(`Upload failed for ${filename} ${collId}`);
       console.log(e);
+      counter.status = "failed";
     }
-
-    this.uploading.delete(collId);
   }
 
   async getUploadStatus(params) {
+    let result = null;
     const counter = this.uploading.get(params.coll);
+
     if (!counter) {
-      return {uploading: false};
+      result = {status: "idle"};
+    } else {
+      const { size, totalSize, status } = counter;
+      result = {status, size, totalSize};
+
+      if (status !== "uploading") {
+        this.uploading.delete(params.coll);
+      }
     }
 
-    const { size, totalSize } = counter;
+    const coll = await this.collections.loadColl(params.coll);
 
-    return {uploading: true, size, totalSize};
+    if (coll && coll.metadata) {
+      result.lastUploadTime = coll.metadata.lastUploadTime;
+      result.lastUploadId = coll.metadata.lastUploadId;
+      result.ctime = coll.metadata.ctime;
+      result.mtime = coll.metadata.mtime;
+    }
+
+    return result;
   }
 
   async recordingPending(params) {
@@ -300,10 +322,12 @@ async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
 }
 
 
+// ===========================================================================
 class CountingStream
 {
   constructor(totalSize) {
     this.totalSize = totalSize || 0;
+    this.status = "uploading";
     this.size = 0;
   }
 
