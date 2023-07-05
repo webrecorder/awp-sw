@@ -25,6 +25,7 @@ class ExtAPI extends API
       "downloadPages": "c/:coll/dl",
       "upload": ["c/:coll/upload", "POST"],
       "uploadStatus": "c/:coll/upload",
+      "uploadDelete": ["c/:coll/upload", "DELETE"],
       "recPending": "c/:coll/recPending",
       "pageTitle": ["c/:coll/pageTitle", "POST"],
       "ipfsAdd": ["c/:coll/ipfs", "POST"],
@@ -52,6 +53,9 @@ class ExtAPI extends API
 
     case "uploadStatus":
       return await this.getUploadStatus(params);
+
+    case "uploadDelete":
+      return await this.deleteUpload(params);
 
     case "recPending":
       return await this.recordingPending(params);
@@ -162,6 +166,23 @@ class ExtAPI extends API
       console.log(e);
       counter.status = counter.aborted ? "aborted" : "failed";
     }
+  }
+
+  async deleteUpload(params) {
+    const collId = params.coll;
+
+    this.uploading.delete(collId);
+
+    const coll = await this.collections.loadColl(collId);
+
+    if (coll && coll.metadata) {
+      coll.metadata.lastUploadTime = null;
+      coll.metadata.lastUploadId = null;
+      await this.collections.updateMetadata(collId, coll.metadata);
+      return {deleted: true};
+    }
+
+    return {deleted: false};
   }
 
   async getUploadStatus(params) {

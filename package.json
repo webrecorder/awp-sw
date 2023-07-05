@@ -18,7 +18,7 @@
   "dependencies": {
     "@ipld/car": "^5.1.1",
     "@ipld/unixfs": "^2.1.1",
-    "@webrecorder/wabac": "^2.16.3",
+    "@webrecorder/wabac": "^2.16.4",
     "auto-js-ipfs": "^2.3.0",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
