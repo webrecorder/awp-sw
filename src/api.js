@@ -15,12 +15,17 @@ class ExtAPI extends API
   constructor(collections, {softwareString = "", replaceSoftwareString = false} = {}) {
     super(collections);
     this.softwareString = replaceSoftwareString ? softwareString : softwareString + DEFAULT_SOFTWARE_STRING;
+
+    this.uploading = new Map();
   }
   
   get routes() {
     return {
       ...super.routes,
       "downloadPages": "c/:coll/dl",
+      "upload": ["c/:coll/upload", "POST"],
+      "uploadStatus": "c/:coll/upload",
+      "uploadDelete": ["c/:coll/upload", "DELETE"],
       "recPending": "c/:coll/recPending",
       "pageTitle": ["c/:coll/pageTitle", "POST"],
       "ipfsAdd": ["c/:coll/ipfs", "POST"],
@@ -42,6 +47,15 @@ class ExtAPI extends API
     switch (params._route) {
     case "downloadPages":
       return await this.handleDownload(params);
+
+    case "upload":
+      return await this.handleUpload(params, request, event);
+
+    case "uploadStatus":
+      return await this.getUploadStatus(params);
+
+    case "uploadDelete":
+      return await this.deleteUpload(params);
 
     case "recPending":
       return await this.recordingPending(params);
@@ -67,6 +81,11 @@ class ExtAPI extends API
   }
 
   async handleDownload(params) {
+    const dl = await this.getDownloader(params);
+    return dl.download();
+  }
+
+  async getDownloader(params) {
     const coll = await this.collections.loadColl(params.coll);
     if (!coll) {
       return {error: "collection_not_found"};
@@ -78,8 +97,120 @@ class ExtAPI extends API
     const format = params._query.get("format") || "wacz";
     let filename = params._query.get("filename");
 
-    const dl = new Downloader({...this.downloaderOpts(), coll, format, filename, pageList});
-    return dl.download();
+    return new Downloader({...this.downloaderOpts(), coll, format, filename, pageList});
+  }
+
+  async handleUpload(params, request, event) {
+    const uploading = this.uploading;
+
+    const prevUpload = uploading.get(params.coll);
+
+    const {url, headers, abortUpload} = await request.json();
+
+    if (prevUpload && prevUpload.status === "uploading") {
+      if (abortUpload && prevUpload.abort) {
+        prevUpload.abort();
+        return {aborted: true};
+      }
+      return {error: "already_uploading"};
+    } else if (abortUpload) {
+      return {error: "not_uploading"};
+    }
+
+    const dl = await this.getDownloader(params);
+    const dlResp = await dl.download();
+    const filename = dlResp.filename;
+
+    const abort = new AbortController();
+    const signal = abort.signal;
+
+    const counter = new CountingStream(dl.metadata.size, abort);
+
+    const body = dlResp.body.pipeThrough(counter.transformStream());
+
+    try {
+      const urlObj = new URL(url);
+      urlObj.searchParams.set("filename", filename);
+      urlObj.searchParams.set("name", dl.metadata.title || filename);
+      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body, signal});
+      uploading.set(params.coll, counter);
+      if (event.waitUntil) {
+        event.waitUntil(this.uploadFinished(fetchPromise, params.coll, dl.metadata, filename, counter));
+      }
+      return {uploading: true};
+    } catch (e) {
+      uploading.delete(params.coll);
+      return {error: "upload_failed", details: e.toString()};
+    }
+  }
+
+  async uploadFinished(fetchPromise, collId, metadata, filename, counter) {
+    try {
+      const resp = await fetchPromise;
+      const json = await resp.json();
+
+      console.log(`Upload finished for ${filename} ${collId}`);
+
+      metadata.uploadTime = new Date().getTime();
+      metadata.uploadId = json.id;
+      if (!metadata.mtime) {
+        metadata.mtime = metadata.uploadTime;
+      }
+      if (!metadata.ctime) {
+        metadata.ctime = metadata.uploadTime;
+      }
+      await this.collections.updateMetadata(collId, metadata);
+      counter.status = "done";
+
+    } catch (e) {
+      console.log(`Upload failed for ${filename} ${collId}`);
+      console.log(e);
+      counter.status = counter.aborted ? "aborted" : "failed";
+    }
+  }
+
+  async deleteUpload(params) {
+    const collId = params.coll;
+
+    this.uploading.delete(collId);
+
+    const coll = await this.collections.loadColl(collId);
+
+    if (coll && coll.metadata) {
+      coll.metadata.uploadTime = null;
+      coll.metadata.uploadId = null;
+      await this.collections.updateMetadata(collId, coll.metadata);
+      return {deleted: true};
+    }
+
+    return {deleted: false};
+  }
+
+  async getUploadStatus(params) {
+    let result = null;
+    const counter = this.uploading.get(params.coll);
+
+    if (!counter) {
+      result = {status: "idle"};
+    } else {
+      const { size, totalSize, status } = counter;
+      result = {status, size, totalSize};
+
+      if (status !== "uploading") {
+        this.uploading.delete(params.coll);
+      }
+    }
+
+    const coll = await this.collections.loadColl(params.coll);
+
+    if (coll && coll.metadata) {
+      result.uploadTime = coll.metadata.uploadTime;
+      result.uploadId = coll.metadata.uploadId;
+      result.ctime = coll.metadata.ctime;
+      result.mtime = coll.metadata.mtime;
+    }
+
+    return result;
   }
 
   async recordingPending(params) {
@@ -224,6 +355,42 @@ async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
   sendMessage("ipfsAdd", result);
 
   await collections.updateMetadata(coll.name, coll.config.metadata);
+}
+
+
+// ===========================================================================
+class CountingStream
+{
+  constructor(totalSize, abort) {
+    this.totalSize = totalSize || 0;
+    this.status = "uploading";
+    this.size = 0;
+    this._abort = abort;
+    this.aborted = false;
+  }
+
+  abort() {
+    if (this._abort) {
+      this._abort.abort();
+      this.aborted = true;
+    }
+  }
+
+  transformStream() {
+    const counterStream = this;
+
+    return new TransformStream({
+      start() {
+        counterStream.size = 0;
+      },
+
+      transform(chunk, controller) {
+        counterStream.size += chunk.length;
+        //console.log(`Uploaded: ${counterStream.size}`);
+        controller.enqueue(chunk);
+      }
+    });
+  }
 }
 
 export { ExtAPI };
