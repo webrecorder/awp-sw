@@ -130,7 +130,8 @@ class ExtAPI extends API
 
     try {
       const urlObj = new URL(url);
-      urlObj.searchParams.set("name", filename);
+      urlObj.searchParams.set("filename", filename);
+      urlObj.searchParams.set("name", dl.metadata.title || filename);
       const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body, signal});
       uploading.set(params.coll, counter);
       if (event.waitUntil) {
