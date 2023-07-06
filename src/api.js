@@ -151,13 +151,13 @@ class ExtAPI extends API
 
       console.log(`Upload finished for ${filename} ${collId}`);
 
-      metadata.lastUploadTime = new Date().getTime();
-      metadata.lastUploadId = json.id;
+      metadata.uploadTime = new Date().getTime();
+      metadata.uploadId = json.id;
       if (!metadata.mtime) {
-        metadata.mtime = metadata.lastUploadTime;
+        metadata.mtime = metadata.uploadTime;
       }
       if (!metadata.ctime) {
-        metadata.ctime = metadata.lastUploadTime;
+        metadata.ctime = metadata.uploadTime;
       }
       await this.collections.updateMetadata(collId, metadata);
       counter.status = "done";
@@ -177,8 +177,8 @@ class ExtAPI extends API
     const coll = await this.collections.loadColl(collId);
 
     if (coll && coll.metadata) {
-      coll.metadata.lastUploadTime = null;
-      coll.metadata.lastUploadId = null;
+      coll.metadata.uploadTime = null;
+      coll.metadata.uploadId = null;
       await this.collections.updateMetadata(collId, coll.metadata);
       return {deleted: true};
     }
@@ -204,8 +204,8 @@ class ExtAPI extends API
     const coll = await this.collections.loadColl(params.coll);
 
     if (coll && coll.metadata) {
-      result.lastUploadTime = coll.metadata.lastUploadTime;
-      result.lastUploadId = coll.metadata.lastUploadId;
+      result.uploadTime = coll.metadata.uploadTime;
+      result.uploadId = coll.metadata.uploadId;
       result.ctime = coll.metadata.ctime;
       result.mtime = coll.metadata.mtime;
     }
