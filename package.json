@@ -1,7 +1,7 @@
 {
   "name": "@webrecorder/awp-sw",
   "browser": "dist/sw.js",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "main": "index.js",
   "type": "module",
   "repository": {
@@ -18,7 +18,7 @@
   "dependencies": {
     "@ipld/car": "^5.1.1",
     "@ipld/unixfs": "^2.1.1",
-    "@webrecorder/wabac": "^2.16.8",
+    "@webrecorder/wabac": "^2.16.9",
     "auto-js-ipfs": "^2.3.0",
     "client-zip": "^2.3.0",
     "hash-wasm": "^4.9.0",
