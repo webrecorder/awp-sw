@@ -3,11 +3,12 @@ import { tsToDate } from "@webrecorder/wabac/src/utils.js";
 
 import { Downloader } from "./downloader.js";
 import { Signer } from "./keystore.js";
-import { ipfsAdd, ipfsRemove, setAutoIPFSUrl } from "./ipfsutils.js";
+//import { ipfsAdd, ipfsRemove, setAutoIPFSUrl } from "./ipfsutils.js";
 import { RecProxy } from "./recproxy.js";
 
 // eslint-disable-next-line no-undef
 const DEFAULT_SOFTWARE_STRING = `Webrecorder ArchiveWeb.page ${__AWP_VERSION__}, using warcio.js ${__WARCIO_VERSION__}`;
+
 
 // ===========================================================================
 class ExtAPI extends API
@@ -70,7 +71,8 @@ class ExtAPI extends API
       return await this.startIpfsAdd(event, request, params.coll);
 
     case "ipfsRemove":
-      return await this.ipfsRemove(request, params.coll);
+      //return await this.ipfsRemove(request, params.coll);
+      return {"error": "ipfs_not_available"};
 
     case "ipfsDaemonUrl":
       return await this.setIPFSDaemonUrlFromBody(request);
@@ -239,51 +241,56 @@ class ExtAPI extends API
     return {coll, body};
   }
 
-  async setIPFSDaemonUrlFromBody(request) {
-    let body;
+  async setIPFSDaemonUrlFromBody() {
+    return {"error": "ipfs_not_available"};
+    // let body;
 
-    try {
-      body = await request.json();
-      if (body.ipfsDaemonUrl) {
-        setAutoIPFSUrl(body.ipfsDaemonUrl);
-      }
-    } catch (e) {
-      body = {};
-    }
+    // try {
+    //   body = await request.json();
+    //   if (body.ipfsDaemonUrl) {
+    //     setAutoIPFSUrl(body.ipfsDaemonUrl);
+    //   }
+    // } catch (e) {
+    //   body = {};
+    // }
 
-    return body;
+    // return body;
   }
 
-  async startIpfsAdd(event, request, collId) {
-    const {coll, body} = await this.prepareColl(collId, request);
-
-    const client = await self.clients.get(event.clientId);
-
-    const p = runIPFSAdd(collId, coll, client, this.downloaderOpts(), this.collections, body);
-
-    if (event.waitUntil) {
-      event.waitUntil(p);
-    }
-
-    try {
-      await p;
-    } catch (e) {
-      return {error: "ipfs_not_available"};
-    }
-
-    return {collId};
+  async startIpfsAdd() {
+    return {error: "ipfs_not_available"};
   }
 
-  async ipfsRemove(request, collId) {
-    const {coll} = await this.prepareColl(collId, request);
+  // async startIpfsAdd(event, request, collId) {
+  //   const {coll, body} = await this.prepareColl(collId, request);
 
-    if (await ipfsRemove(coll)) {
-      await this.collections.updateMetadata(coll.name, coll.config.metadata);
-      return {removed: true};
-    }
+  //   const client = await self.clients.get(event.clientId);
 
-    return {removed: false};
-  }
+  //   const p = runIPFSAdd(collId, coll, client, this.downloaderOpts(), this.collections, body);
+
+  //   if (event.waitUntil) {
+  //     event.waitUntil(p);
+  //   }
+
+  //   try {
+  //     await p;
+  //   } catch (e) {
+  //     return {error: "ipfs_not_available"};
+  //   }
+
+  //   return {collId};
+  // }
+
+  // async ipfsRemove(request, collId) {
+  //   const {coll} = await this.prepareColl(collId, request);
+
+  //   if (await ipfsRemove(coll)) {
+  //     await this.collections.updateMetadata(coll.name, coll.config.metadata);
+  //     return {removed: true};
+  //   }
+
+  //   return {removed: false};
+  // }
 
   async updatePageTitle(collId, request) {
     const json = await request.json();
@@ -332,30 +339,30 @@ class ExtAPI extends API
 }
 
 // ===========================================================================
-async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
-  let size = 0;
-  let totalSize = 0;
+// async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
+//   let size = 0;
+//   let totalSize = 0;
 
-  const sendMessage = (type, result = null) => {
-    if (client) {
-      client.postMessage({
-        type, collId, size, result, totalSize
-      });
-    }
-  };
+//   const sendMessage = (type, result = null) => {
+//     if (client) {
+//       client.postMessage({
+//         type, collId, size, result, totalSize
+//       });
+//     }
+//   };
 
-  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize, _totalSize) => {
-    size += incSize;
-    totalSize = _totalSize;
-    sendMessage("ipfsProgress");
-  });
+//   const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize, _totalSize) => {
+//     size += incSize;
+//     totalSize = _totalSize;
+//     sendMessage("ipfsProgress");
+//   });
 
-  const result = {cid, ipfsURL: url};
+//   const result = {cid, ipfsURL: url};
 
-  sendMessage("ipfsAdd", result);
+//   sendMessage("ipfsAdd", result);
 
-  await collections.updateMetadata(coll.name, coll.config.metadata);
-}
+//   await collections.updateMetadata(coll.name, coll.config.metadata);
+// }
 
 
 // ===========================================================================

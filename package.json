@@ -16,8 +16,6 @@
     "src/*"
   ],
   "dependencies": {
-    "@ipld/car": "^5.3.0",
-    "@ipld/unixfs": "^3.0.0",
     "@webrecorder/wabac": "^2.18.1",
     "auto-js-ipfs": "^2.3.0",
     "client-zip": "^2.3.0",
