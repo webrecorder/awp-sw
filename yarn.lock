@@ -41,10 +41,10 @@
   resolved "https://registry.yarnpkg.com/@humanwhocodes/object-schema/-/object-schema-1.2.1.tgz#b520529ec21d8e5945a1851dfd1c32e94e39ff45"
   integrity sha512-ZnQMnLV4e7hDlUvw8H+U8ASL02SS2Gn6+9Ac3wGGLIe7+je2AeAOxPY+izIPJDfFDb7eDjev0Us8MO1iFRN8hA==
 
-"@ipld/car@^5.3.0":
-  version "5.3.0"
-  resolved "https://registry.yarnpkg.com/@ipld/car/-/car-5.3.0.tgz#0e131ca660bdd3f1eb73517641d5c23840bf067a"
-  integrity sha512-OB8LVvJeVAFFGluNIkZeDZ/aGeoekFKsuIvNT9I5sJIb5WekQuW5+lekjQ7Z7mZ7DBKuke/kI4jBT1j0/akU1w==
+"@ipld/car@^5.3.1":
+  version "5.3.1"
+  resolved "https://registry.yarnpkg.com/@ipld/car/-/car-5.3.1.tgz#6a967b2f929cab007466edab3171c18f489036d4"
+  integrity sha512-8fNkYAZvL9yX2zesF32k7tYqUDGG41felmmBnwjCZJto06QXCb0NOMPJc/mhNgnVa5gkKqxPO1ZdSoHuaYcVSw==
   dependencies:
     "@ipld/dag-cbor" "^9.0.7"
     cborg "^4.0.5"
