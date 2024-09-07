@@ -1,5 +1,4 @@
-import { API } from "@webrecorder/wabac/src/api.js";
-import { tsToDate } from "@webrecorder/wabac/src/utils.js";
+import { API, SWCollections, tsToDate } from "@webrecorder/wabac/swlib";
 
 import { Downloader } from "./downloader.js";
 import { Signer } from "./keystore.js";
@@ -12,14 +11,17 @@ const DEFAULT_SOFTWARE_STRING = `Webrecorder ArchiveWeb.page ${__AWP_VERSION__},
 // ===========================================================================
 class ExtAPI extends API
 {
-  constructor(collections, {softwareString = "", replaceSoftwareString = false} = {}) {
+  softwareString = "";
+  uploading = new Map();
+
+  constructor(collections: SWCollections, {softwareString = "", replaceSoftwareString = false} = {}) {
     super(collections);
     this.softwareString = replaceSoftwareString ? softwareString : softwareString + DEFAULT_SOFTWARE_STRING;
 
     this.uploading = new Map();
   }
   
-  get routes() {
+  override get routes(): Record<string, string | [string, string]> {
     return {
       ...super.routes,
       "downloadPages": "c/:coll/dl",
@@ -43,7 +45,7 @@ class ExtAPI extends API
     return {softwareString, signer};
   }
 
-  async handleApi(request, params, event) {
+  override async handleApi(request: Request, params: any, event: FetchEvent){
     switch (params._route) {
     case "downloadPages":
       return await this.handleDownload(params);
@@ -67,10 +69,12 @@ class ExtAPI extends API
       return await this.getPublicKey();
 
     case "ipfsAdd":
-      return await this.startIpfsAdd(event, request, params.coll);
+      //return await this.startIpfsAdd(event, request, params.coll);
+      return {};
 
     case "ipfsRemove":
-      return await this.ipfsRemove(request, params.coll);
+      //return await this.ipfsRemove(request, params.coll);
+      return {};
 
     case "ipfsDaemonUrl":
       return await this.setIPFSDaemonUrlFromBody(request);

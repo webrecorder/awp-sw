@@ -1,14 +1,19 @@
-import { ArchiveDB } from "@webrecorder/wabac/src/archivedb.js";
-import { LiveProxy } from "@webrecorder/wabac/src/liveproxy.js";
-import { SWCollections } from "@webrecorder/wabac/src/swmain.js";
-import { randomId } from "@webrecorder/wabac/src/utils.js";
+import { ArchiveDB, ArchiveRequest, ArchiveResponse, CollectionLoader, LiveProxy, SWCollections, randomId } from "@webrecorder/wabac/swlib";
 import { postToGetUrl } from "warcio";
 
 
 // ===========================================================================
 export class RecProxy extends ArchiveDB
 {
-  constructor(config, collLoader) {
+  collLoader: CollectionLoader;
+  recordProxied: boolean;
+  liveProxy: LiveProxy;
+  pageId: string;
+  isNew = true;
+  firstPageOnly: boolean;
+  counter = 0;
+
+  constructor(config: any, collLoader: CollectionLoader) {
     super(config.dbname);
 
     this.name = config.dbname.slice(3);
@@ -26,22 +31,22 @@ export class RecProxy extends ArchiveDB
     this.counter = 0;
   }
 
-  _initDB(db, oldV, newV, tx) {
-    super._initDB(db, oldV, newV, tx);
+  override _initDB(db: any, ...args : any[]) {
+    super._initDB(db, ...args);
     db.createObjectStore("rec");
   }
 
   async decCounter() {
     this.counter--;
     //console.log("rec counter", this.counter);
-    await this.db.put("rec", this.counter, "numPending");
+    await this.db!.put("rec", this.counter, "numPending");
   }
 
-  async getCounter() {
-    return await this.db.get("rec", "numPending");
+  async getCounter() : Promise<number | undefined> {
+    return await this.db!.get("rec", "numPending");
   }
 
-  async getResource(request, prefix) {
+  override async getResource(request: ArchiveRequest, prefix: string) {
     let req;
     
     if (request.method === "POST" || request.method === "PUT") {
@@ -50,7 +55,7 @@ export class RecProxy extends ArchiveDB
       req = request.request;
     }
 
-    let response = null;
+    let response : ArchiveResponse | null = null;
 
     try {
       this.counter++;
@@ -64,19 +69,19 @@ export class RecProxy extends ArchiveDB
 
     // don't record content proxied from specified hosts
     if (!this.recordProxied && this.liveProxy.hostProxy) {
-      const parsedUrl = new URL(response.url);
+      const parsedUrl = new URL(response!.url);
       if (this.liveProxy.hostProxy[parsedUrl.host]) {
         await this.decCounter();
         return response;
       }
     }
 
-    this.doRecord(response, req).finally(() => this.decCounter());
+    this.doRecord(response!, req).finally(() => this.decCounter());
 
     return response;
   }
 
-  async doRecord(response, request) {
+  async doRecord(response: ArchiveResponse, request: Request) {
     let url = response.url;
     const ts = response.date.getTime();
 
@@ -95,7 +100,7 @@ export class RecProxy extends ArchiveDB
     const respHeaders = Object.fromEntries(response.headers.entries());
     const reqHeaders = Object.fromEntries(request.headers.entries());
 
-    const payload = new Uint8Array(await response.clonedResponse.arrayBuffer());
+    const payload = new Uint8Array(await response.clonedResponse!.arrayBuffer());
 
     if (range) {
       const expectedRange = `bytes 0-${payload.length - 1}/${payload.length}`;
@@ -158,7 +163,7 @@ export class RecProxy extends ArchiveDB
 // ===========================================================================
 export class RecordingCollections extends SWCollections
 {
-  async _initStore(type, config) {
+  async _initStore(type: string, config: any) {
     let store;
 
     switch (type) {

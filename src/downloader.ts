@@ -5,10 +5,14 @@ import { Deflate } from "pako";
 import { v5 as uuidv5 } from "uuid";
 
 import { createSHA256 } from "hash-wasm";
+import { type IHasher } from "hash-wasm/dist/lib/WASMInterface.js";
 
 import { getSurt, WARCRecord, WARCSerializer } from "warcio";
 
-import { getTSMillis, getStatusText, digestMessage } from "@webrecorder/wabac/src/utils.js";
+import { getTSMillis, getStatusText, digestMessage } from "@webrecorder/wabac";
+import { ArchiveDB, ResourceEntry } from "@webrecorder/wabac/swlib";
+import { Signer } from "./keystore";
+import { Collection } from "../../wabac.js/dist/types/collection";
 
 
 // ===========================================================================
@@ -28,11 +32,11 @@ const encoder = new TextEncoder();
 
 const EMPTY = new Uint8Array([]);
 
-async function* getPayload(payload) {
+async function* getPayload(payload: Uint8Array) {
   yield payload;
 }
 
-async function* hashingGen(gen, stats, hasher, sizeCallback, zipMarker) {
+async function* hashingGen(gen: AsyncIterable<Uint8Array | string>, stats: any, hasher: IHasher, sizeCallback: any, zipMarker: Uint8Array) {
   stats.size = 0;
 
   hasher.init();
@@ -61,31 +65,89 @@ async function* hashingGen(gen, stats, hasher, sizeCallback, zipMarker) {
   stats.hash = hasher.digest("hex");
 }
 
+type DownloaderOpts = {
+  coll: Collection;
+  format: string;
+  filename?: string;
+  pageList?: string[];
+  signer?: Signer;
+  softwareString?: string;
+  gzip?: boolean;
+  uuidNamespace?: string;
+  markers?: Record<string, Uint8Array>;
+};
+
 // ===========================================================================
 class Downloader
 {
-  constructor({coll, format = "wacz", filename = null, pageList = null, signer = null,
-    softwareString = null, gzip = true, uuidNamespace = null, markers = null}) {
+  db: ArchiveDB;
+  pageList: string[] | null;
+  collId: string;
+  metadata: Record<string, string>;
+  gzip: boolean;
+
+  markers: Record<string, Uint8Array>;
+  warcName: string;
+  alreadyDecoded: boolean;
+
+  softwareString: string;
+  uuidNamespace: string;
+
+  createdDateDt: Date;
+  createdDate: string;
+  modifiedDate: string | null;
+
+  format: string;
+  warcVersion: string;
+
+  digestOpts: {
+    algo: string;
+    prefix: string;
+    base32?: boolean;
+  };
+
+  filename: string;
+
+  signer: Signer | null;
+
+  offset = 0;
+  firstResources = [];
+  textResources = [];
+  cdxjLines = [];
+
+  // compressed index (idx) entries
+  indexLines = [];
+
+  digestsVisted = {};
+  fileHasher = null;
+  recordHasher = null;
+
+  datapackageDigest = null;
+
+  fileStats = [];
+
+  constructor({coll, format = "wacz", filename, pageList, signer,
+    softwareString, gzip = true, uuidNamespace, markers} : DownloaderOpts) {
 
     this.db = coll.store;
-    this.pageList = pageList;
+    this.pageList = pageList || [];
     this.collId = coll.name;
-    this.metadata = coll.config.metadata;
+    this.metadata = coll.config["metadata"];
     this.gzip = gzip;
 
     this.markers = markers || {};
 
     this.warcName = this.gzip ? "data.warc.gz" : "data.warc";
 
-    this.alreadyDecoded = !coll.config.decode && !coll.config.loadUrl;
+    this.alreadyDecoded = !coll.config["decode"] && !coll.config["loadUrl"];
 
     this.softwareString = softwareString || "ArchiveWeb.page";
 
     this.uuidNamespace = uuidNamespace || DEFAULT_UUID_NAMESPACE;
 
-    this.createdDateDt = new Date(coll.config.ctime);
+    this.createdDateDt = new Date(coll.config["ctime"]);
     this.createdDate = this.createdDateDt.toISOString();
-    this.modifiedDate = coll.config.metadata.mtime ? new Date(coll.config.metadata.mtime).toISOString() : null;
+    this.modifiedDate = coll.config["metadata"].mtime ? new Date(coll.config["metadata"].mtime).toISOString() : null;
 
     this.format = format;
     this.warcVersion = (format === "warc1.0") ? "WARC/1.0" : "WARC/1.1";
@@ -96,33 +158,17 @@ class Downloader
       this.digestOpts = {algo: "sha-256", prefix: "sha256:"};
     }
 
-    this.filename = filename;
-
     // determine filename from title, if it exists
-    if (!this.filename && coll.config.metadata.title) {
-      this.filename = encodeURIComponent(coll.config.metadata.title.toLowerCase().replace(/\s/g, "-"));
+    if (!filename && coll.config["metadata"].title) {
+      filename = encodeURIComponent(coll.config["metadata"].title.toLowerCase().replace(/\s/g, "-"));
     }
     
-    if (!this.filename) {
-      this.filename = "webarchive";
+    if (!filename) {
+      filename = "webarchive";
     }
+    this.filename = filename;
 
-    this.offset = 0;
-    this.firstResources = [];
-    this.textResources = [];
-    this.cdxjLines = [];
-
-    // compressed index (idx) entries
-    this.indexLines = [];
-
-    this.digestsVisted = {};
-    this.fileHasher = null;
-    this.recordHasher = null;
-
-    this.datapackageDigest = null;
-    this.signer = signer;
-
-    this.fileStats = [];
+    this.signer = signer || null;
   }
 
   download(sizeCallback = null) {
@@ -139,7 +185,7 @@ class Downloader
     }
   }
 
-  downloadWARC(filename, sizeCallback = null) {
+  downloadWARC(filename: string, sizeCallback = null) {
     filename = (filename || "webarchive").split(".")[0] + ".warc";
 
     const dl = this;
@@ -160,19 +206,19 @@ class Downloader
     return resp;
   }
 
-  async loadResourcesBlock(start = []) {
-    return await this.db.db.getAll("resources", IDBKeyRange.lowerBound(start, true), RESOURCE_BATCH_SIZE);
+  async loadResourcesBlock(start : [string, number] | [] = []) {
+    return await this.db.db!.getAll("resources", IDBKeyRange.lowerBound(start, true), RESOURCE_BATCH_SIZE);
   }
 
-  async* iterResources(resources) {
-    let start = [];
+  async* iterResources(resources: ResourceEntry[]) {
+    let start : [string, number] | [] = [];
     //let count = 0;
 
     while (resources.length) {
-      const last = resources[resources.length - 1];
+      const last : ResourceEntry = resources[resources.length - 1] as ResourceEntry;
 
       if (this.pageList) {
-        resources = resources.filter((res) => this.pageList.includes(res.pageId));
+        resources = resources.filter((res) => this.pageList!.includes(res.pageId || ""));
       }
       //count += resources.length;
       yield* resources;
@@ -185,7 +231,7 @@ class Downloader
     // }
   }
 
-  async queueWARC(controller, filename, sizeCallback) {
+  async queueWARC(controller, filename: string, sizeCallback: any) {
     this.firstResources = await this.loadResourcesBlock();
 
     for await (const chunk of this.generateWARC(filename)) {

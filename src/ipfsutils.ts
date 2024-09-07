@@ -2,9 +2,9 @@ import { Downloader } from "./downloader.js";
 
 import { create as createAutoIPFS } from "auto-js-ipfs";
 
-import * as UnixFS from "@ipld/unixfs";
-import { CarWriter } from "@ipld/car/writer";
-import Queue from "p-queue";
+//import * as UnixFS from "@ipld/unixfs";
+//import { CarWriter } from "@ipld/car/writer";
+//import Queue from "p-queue";
 
 // eslint-disable-next-line no-undef
 const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__};
