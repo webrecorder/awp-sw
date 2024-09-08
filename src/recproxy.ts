@@ -1,5 +1,13 @@
-import { ArchiveDB, ArchiveRequest, ArchiveResponse, CollectionLoader, LiveProxy, SWCollections, randomId } from "@webrecorder/wabac/swlib";
+import { type ADBType, ArchiveDB, type ArchiveRequest, type ArchiveResponse, type CollectionLoader, LiveProxy, SWCollections, randomId } from "@webrecorder/wabac/swlib";
+import { type IDBPDatabase, type IDBPTransaction } from "idb";
 import { postToGetUrl } from "warcio";
+
+//export interface RecDBType extends ADBType {
+export type RecDBType = ADBType & {
+  rec: {
+    key: string
+  }
+};
 
 
 // ===========================================================================
@@ -13,7 +21,9 @@ export class RecProxy extends ArchiveDB
   firstPageOnly: boolean;
   counter = 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(config: any, collLoader: CollectionLoader) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     super(config.dbname);
 
     this.name = config.dbname.slice(3);
@@ -22,6 +32,7 @@ export class RecProxy extends ArchiveDB
 
     this.recordProxied = config.extraConfig.recordProxied || false;
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     this.liveProxy = new LiveProxy(config.extraConfig, {cloneResponse: true, allowBody: true});
 
     this.pageId = randomId();
@@ -31,19 +42,28 @@ export class RecProxy extends ArchiveDB
     this.counter = 0;
   }
 
-  override _initDB(db: any, ...args : any[]) {
-    super._initDB(db, ...args);
-    db.createObjectStore("rec");
+  override _initDB(db: IDBPDatabase<ADBType>, oldV: number, newV: number | null, tx: IDBPTransaction<
+    ADBType,
+    (keyof ADBType)[],
+    "readwrite" | "versionchange"
+  >) {
+    super._initDB(db, oldV, newV, tx);
+    //TODO: fix
+    (db as unknown as IDBPDatabase<RecDBType>).createObjectStore("rec");
   }
 
   async decCounter() {
     this.counter--;
     //console.log("rec counter", this.counter);
-    await this.db!.put("rec", this.counter, "numPending");
+    //TODO: fix
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (this.db! as any).put("rec", this.counter, "numPending");
   }
 
   async getCounter() : Promise<number | undefined> {
-    return await this.db!.get("rec", "numPending");
+    //TODO: fix
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return
+    return await (this.db! as any).get("rec", "numPending");
   }
 
   override async getResource(request: ArchiveRequest, prefix: string) {
@@ -60,7 +80,7 @@ export class RecProxy extends ArchiveDB
     try {
       this.counter++;
       response = await this.liveProxy.getResource(request, prefix);
-    } catch (e) {
+    } catch (_e) {
       await this.decCounter();
       return null;
     }
@@ -68,6 +88,7 @@ export class RecProxy extends ArchiveDB
     //this.cookie = response.headers.get("x-wabac-preset-cookie");
 
     // don't record content proxied from specified hosts
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!this.recordProxied && this.liveProxy.hostProxy) {
       const parsedUrl = new URL(response!.url);
       if (this.liveProxy.hostProxy[parsedUrl.host]) {
@@ -76,7 +97,7 @@ export class RecProxy extends ArchiveDB
       }
     }
 
-    this.doRecord(response!, req).finally(() => this.decCounter());
+    this.doRecord(response!, req).catch(() => {}).finally(async () => this.decCounter());
 
     return response;
   }
@@ -163,18 +184,18 @@ export class RecProxy extends ArchiveDB
 // ===========================================================================
 export class RecordingCollections extends SWCollections
 {
-  async _initStore(type: string, config: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  override async _initStore(type: string, config: any) {
     let store;
 
     switch (type) {
     case "recordingproxy":
       store = new RecProxy(config, this);
-      if (store.initing) {
-        await store.initing;
-      }
+      await store.initing;
       return store;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return await super._initStore(type, config);
   }
 }

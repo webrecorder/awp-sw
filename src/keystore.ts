@@ -1,6 +1,6 @@
 import { openDB } from "idb/with-async-ittr";
 import { fromByteArray as encodeBase64, toByteArray as decodeBase64 } from "base64-js";
-import { IDBPDatabase } from "idb";
+import { type IDBPDatabase } from "idb";
 
 type KeyPair = {
   public: string;
@@ -13,6 +13,14 @@ type IdSig = {
   keys?: KeyPair;
 };
 
+export type DataSignature = {
+  hash: string;
+  signature: string;
+  publicKey: string;
+  created: string;
+  software: string;
+}
+
 // ====================================================================
 export class KeyStore
 {
@@ -21,7 +29,7 @@ export class KeyStore
   key: string;
   version: number;
   _ready: Promise<void>;
-  db: IDBPDatabase<unknown> | null = null;
+  db: IDBPDatabase | null = null;
 
   constructor({dbname = "_keystore", mainStore = "store", key = "id", version = 1} = {}) {
     this.dbname = dbname;
@@ -35,10 +43,11 @@ export class KeyStore
     //let oldVersion = 0;
 
     this.db = await openDB(this.dbname, this.version, {
-      upgrade: (db, oldV, newV, tx) => {
+      upgrade: (db, oldV, _newV, _tx) => {
         //oldVersion = oldV;
         this._initDB(db, oldV);
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blocking: (e: any) => { if (!e || e.newVersion === null) { this.close(); }}
     });
   }
@@ -51,11 +60,13 @@ export class KeyStore
 
   async listAll() {
     await this._ready;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await this.db!.getAll(this.mainStore);
   }
 
   async get(name: string) {
     await this._ready;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await this.db!.get(this.mainStore, name);
   }
 
@@ -82,12 +93,12 @@ export class Signer
 {
   softwareString: string;
   _store: KeyStore | null;
-  cacheSig: any;
+  cacheSig: boolean;
 
-  constructor(softwareString: string, opts: any = {}) {
+  constructor(softwareString: string, opts: {cacheSig?: boolean} = {}) {
     this._store = new KeyStore();
     this.softwareString = softwareString || "ArchiveWeb.page";
-    this.cacheSig = opts.cacheSig;
+    this.cacheSig = opts.cacheSig || false;
   }
 
   close() {
@@ -97,7 +108,7 @@ export class Signer
     }
   }
 
-  async sign(string: string, created: string) {
+  async sign(string: string, created: string) : Promise<DataSignature> {
     let keyPair : CryptoKeyPair;
     let keys = await this.loadKeys();
 
@@ -134,12 +145,12 @@ export class Signer
       keyPair = {privateKey, publicKey};
     }
 
-    let signature = this.cacheSig ? await this.loadSig(string) : null;
+    let signature : string | null = this.cacheSig ? await this.loadSig(string) : null;
 
     if (!signature) {
       const data = new TextEncoder().encode(string);
-      signature = await crypto.subtle.sign(ecdsaSignParams, keyPair.privateKey, data);
-      signature = encodeBase64(new Uint8Array(signature));
+      const signatureBuff = await crypto.subtle.sign(ecdsaSignParams, keyPair.privateKey, data);
+      signature = encodeBase64(new Uint8Array(signatureBuff));
       await this.saveSig(string, signature);
     }
 
@@ -158,17 +169,19 @@ export class Signer
     return await this._store!.put({id, sig});
   }
 
-  async loadSig(id: string) {
+  async loadSig(id: string) : Promise<string> {
     const res = await this._store!.get(id);
-    return res && res.sig;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return res?.sig;
   }
 
   async saveKeys(keys: KeyPair, id = "_userkey") {
     return await this._store!.put({id, keys});
   }
 
-  async loadKeys(id = "_userkey") : Promise<KeyPair> {
+  async loadKeys(id = "_userkey") : Promise<KeyPair | null> {
     const res = await this._store!.get(id);
-    return res && res.keys;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return res?.keys;
   }
 }

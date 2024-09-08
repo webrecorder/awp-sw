@@ -9,7 +9,7 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
-    "noPropertyAccessFromIndexSignature": true,
+    "noPropertyAccessFromIndexSignature": false,
     "noUncheckedIndexedAccess": true,
     "declaration": true,
     "declarationMap": true,
@@ -22,7 +22,7 @@
     "inlineSources": true,
     "skipLibCheck": true,
     "incremental": true,
-    "lib": ["webworker", "esnext"]
+    "lib": ["webworker", "esnext", "webworker.iterable"]
   },
   "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.d.ts"]
 }

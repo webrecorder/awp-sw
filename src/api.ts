@@ -1,24 +1,27 @@
-import { API, SWCollections, tsToDate } from "@webrecorder/wabac/swlib";
+import { API, type SWCollections, tsToDate } from "@webrecorder/wabac/swlib";
 
-import { Downloader } from "./downloader.js";
-import { Signer } from "./keystore.js";
-import { ipfsAdd, ipfsRemove, setAutoIPFSUrl } from "./ipfsutils.js";
-import { RecProxy } from "./recproxy.js";
+import { Downloader, type Metadata } from "./downloader";
+import { Signer } from "./keystore";
+import { ipfsAdd, ipfsRemove, setAutoIPFSUrl } from "./ipfsutils";
+import { RecProxy } from "./recproxy";
+import { type Collection } from "@webrecorder/wabac/swlib";
 
-// eslint-disable-next-line no-undef
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RouteMatch = Record<string, any>;
+
+declare let self: ServiceWorkerGlobalScope;
+
 const DEFAULT_SOFTWARE_STRING = `Webrecorder ArchiveWeb.page ${__AWP_VERSION__}, using warcio.js ${__WARCIO_VERSION__}`;
 
 // ===========================================================================
 class ExtAPI extends API
 {
   softwareString = "";
-  uploading = new Map();
+  uploading : Map<string, CountingStream> = new Map<string, CountingStream>();
 
   constructor(collections: SWCollections, {softwareString = "", replaceSoftwareString = false} = {}) {
     super(collections);
     this.softwareString = replaceSoftwareString ? softwareString : softwareString + DEFAULT_SOFTWARE_STRING;
-
-    this.uploading = new Map();
   }
   
   override get routes(): Record<string, string | [string, string]> {
@@ -45,6 +48,7 @@ class ExtAPI extends API
     return {softwareString, signer};
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   override async handleApi(request: Request, params: any, event: FetchEvent){
     switch (params._route) {
     case "downloadPages":
@@ -80,31 +84,34 @@ class ExtAPI extends API
       return await this.setIPFSDaemonUrlFromBody(request);
 
     default:
-      return await super.handleApi(request, params);
+      return await super.handleApi(request, params, event);
     }
   }
 
-  async handleDownload(params) {
-    const dl = await this.getDownloader(params);
+  async handleDownload(params: RouteMatch) {
+    const {dl, error} = await this.getDownloader(params);
+    if (error) {
+      return error;
+    }
     return dl.download();
   }
 
-  async getDownloader(params) {
+  async getDownloader(params: RouteMatch) {
     const coll = await this.collections.loadColl(params.coll);
     if (!coll) {
-      return {error: "collection_not_found"};
+      return {error: {error: "collection_not_found"}};
     }
 
-    const pageQ = params._query.get("pages");
+    const pageQ = params["_query"].get("pages");
     const pageList = pageQ === "all" ? null : pageQ.split(",");
 
-    const format = params._query.get("format") || "wacz";
-    let filename = params._query.get("filename");
+    const format = params["_query"].get("format") || "wacz";
+    const filename = params["_query"].get("filename");
 
-    return new Downloader({...this.downloaderOpts(), coll, format, filename, pageList});
+    return {dl: new Downloader({...this.downloaderOpts(), coll, format, filename, pageList})};
   }
 
-  async handleUpload(params, request, event) {
+  async handleUpload(params: RouteMatch, request: Request, event: FetchEvent) {
     const uploading = this.uploading;
 
     const prevUpload = uploading.get(params.coll);
@@ -121,34 +128,42 @@ class ExtAPI extends API
       return {error: "not_uploading"};
     }
 
-    const dl = await this.getDownloader(params);
+    const {dl, error} = await this.getDownloader(params);
+    if (error) {
+      return error;
+    }
     const dlResp = await dl.download();
-    const filename = dlResp.filename;
+    if (!(dlResp instanceof Response)) {
+      return dlResp;
+    }
+    const filename = dlResp.filename || "";
 
     const abort = new AbortController();
     const signal = abort.signal;
 
     const counter = new CountingStream(dl.metadata.size, abort);
 
-    const body = dlResp.body.pipeThrough(counter.transformStream());
+    const body = dlResp.body!.pipeThrough(counter.transformStream());
 
     try {
       const urlObj = new URL(url);
-      urlObj.searchParams.set("filename", filename);
-      urlObj.searchParams.set("name", dl.metadata.title || filename);
-      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body, signal});
-      uploading.set(params.coll, counter);
+      urlObj.searchParams.set("filename", filename || "");
+      urlObj.searchParams.set("name", dl.metadata["title"] || filename || "");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fetchPromise = fetch(urlObj.href, {method: "PUT", headers, duplex: "half", body, signal} as any);
+      uploading.set(params["coll"], counter);
       if (event.waitUntil) {
-        event.waitUntil(this.uploadFinished(fetchPromise, params.coll, dl.metadata, filename, counter));
+        event.waitUntil(this.uploadFinished(fetchPromise, params["coll"], dl.metadata, filename, counter));
       }
       return {uploading: true};
-    } catch (e) {
-      uploading.delete(params.coll);
-      return {error: "upload_failed", details: e.toString()};
+    } catch (e: unknown) {
+      uploading.delete(params["coll"]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return {error: "upload_failed", details: (e as any).toString()};
     }
   }
 
-  async uploadFinished(fetchPromise, collId, metadata, filename, counter) {
+  async uploadFinished(fetchPromise: Promise<Response>, collId: string, metadata: Metadata, filename: string, counter: CountingStream) {
     try {
       const resp = await fetchPromise;
       const json = await resp.json();
@@ -163,7 +178,7 @@ class ExtAPI extends API
       if (!metadata.ctime) {
         metadata.ctime = metadata.uploadTime;
       }
-      await this.collections.updateMetadata(collId, metadata);
+      await this.collections.updateMetadata(collId, metadata as Record<string, string>);
       counter.status = "done";
 
     } catch (e) {
@@ -173,8 +188,8 @@ class ExtAPI extends API
     }
   }
 
-  async deleteUpload(params) {
-    const collId = params.coll;
+  async deleteUpload(params: RouteMatch) {
+    const collId = params["coll"];
 
     this.uploading.delete(collId);
 
@@ -190,9 +205,9 @@ class ExtAPI extends API
     return {deleted: false};
   }
 
-  async getUploadStatus(params) {
-    let result = null;
-    const counter = this.uploading.get(params.coll);
+  async getUploadStatus(params: RouteMatch) {
+    let result : Metadata = {};
+    const counter = this.uploading.get(params["coll"]);
 
     if (!counter) {
       result = {status: "idle"};
@@ -201,11 +216,11 @@ class ExtAPI extends API
       result = {status, size, totalSize};
 
       if (status !== "uploading") {
-        this.uploading.delete(params.coll);
+        this.uploading.delete(params["coll"]);
       }
     }
 
-    const coll = await this.collections.loadColl(params.coll);
+    const coll = await this.collections.loadColl(params["coll"]);
 
     if (coll && coll.metadata) {
       result.uploadTime = coll.metadata.uploadTime;
@@ -217,8 +232,8 @@ class ExtAPI extends API
     return result;
   }
 
-  async recordingPending(params) {
-    const coll = await this.collections.loadColl(params.coll);
+  async recordingPending(params: RouteMatch) {
+    const coll = await this.collections.loadColl(params["coll"]);
     if (!coll) {
       return {error: "collection_not_found"};
     }
@@ -232,7 +247,7 @@ class ExtAPI extends API
     return { numPending };
   }
 
-  async prepareColl(collId, request) {
+  async prepareColl(collId: string, request: Request) {
     const coll = await this.collections.loadColl(collId);
     if (!coll) {
       return {error: "collection_not_found"};
@@ -243,7 +258,7 @@ class ExtAPI extends API
     return {coll, body};
   }
 
-  async setIPFSDaemonUrlFromBody(request) {
+  async setIPFSDaemonUrlFromBody(request: Request) {
     let body;
 
     try {
@@ -251,14 +266,14 @@ class ExtAPI extends API
       if (body.ipfsDaemonUrl) {
         setAutoIPFSUrl(body.ipfsDaemonUrl);
       }
-    } catch (e) {
+    } catch (_e: unknown) {
       body = {};
     }
 
     return body;
   }
 
-  async startIpfsAdd(event, request, collId) {
+  async startIpfsAdd(event: FetchEvent, request: Request, collId: string) {
     const {coll, body} = await this.prepareColl(collId, request);
 
     const client = await self.clients.get(event.clientId);
@@ -271,14 +286,14 @@ class ExtAPI extends API
 
     try {
       await p;
-    } catch (e) {
+    } catch (_e) {
       return {error: "ipfs_not_available"};
     }
 
     return {collId};
   }
 
-  async ipfsRemove(request, collId) {
+  async ipfsRemove(request: Request, collId: string) {
     const {coll} = await this.prepareColl(collId, request);
 
     if (await ipfsRemove(coll)) {
@@ -289,9 +304,10 @@ class ExtAPI extends API
     return {removed: false};
   }
 
-  async updatePageTitle(collId, request) {
+  async updatePageTitle(collId: string, request: Request) {
     const json = await request.json();
-    let {url, ts, title} = json;
+    const {url, title} = json;
+    let { ts } = json;
 
     ts = tsToDate(ts).getTime();
 
@@ -336,11 +352,13 @@ class ExtAPI extends API
 }
 
 // ===========================================================================
-async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runIPFSAdd(collId: string, coll: Collection, client: Client | undefined, opts: any, collections: SWCollections, replayOpts: any) {
   let size = 0;
   let totalSize = 0;
 
-  const sendMessage = (type, result = null) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sendMessage = (type: string, result: any = null) => {
     if (client) {
       client.postMessage({
         type, collId, size, result, totalSize
@@ -348,7 +366,7 @@ async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
     }
   };
 
-  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize, _totalSize) => {
+  const {url, cid} = await ipfsAdd(coll, opts, replayOpts, (incSize: number, _totalSize: number) => {
     size += incSize;
     totalSize = _totalSize;
     sendMessage("ipfsProgress");
@@ -358,14 +376,20 @@ async function runIPFSAdd(collId, coll, client, opts, collections, replayOpts) {
 
   sendMessage("ipfsAdd", result);
 
-  await collections.updateMetadata(coll.name, coll.config.metadata);
+  await collections.updateMetadata(coll.name, coll.config["metadata"]);
 }
 
 
 // ===========================================================================
 class CountingStream
 {
-  constructor(totalSize, abort) {
+  totalSize: number;
+  status: string;
+  size = 0;
+  _abort?: AbortController;
+  aborted: boolean;
+
+  constructor(totalSize?: number, abort?: AbortController) {
     this.totalSize = totalSize || 0;
     this.status = "uploading";
     this.size = 0;

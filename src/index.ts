@@ -1,4 +1,4 @@
-export { Signer } from "./keystore.js";
-export { RecordingCollections } from "./recproxy.js";
-export { Downloader } from "./downloader.js";
-export { ExtAPI } from "./api.js";
+export { Signer } from "./keystore";
+export { RecordingCollections } from "./recproxy";
+export { Downloader } from "./downloader";
+export { ExtAPI } from "./api";
