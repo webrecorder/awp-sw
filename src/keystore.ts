@@ -1,11 +1,14 @@
 import { openDB } from "idb/with-async-ittr";
-import { fromByteArray as encodeBase64, toByteArray as decodeBase64 } from "base64-js";
+import {
+  fromByteArray as encodeBase64,
+  toByteArray as decodeBase64,
+} from "base64-js";
 import { type IDBPDatabase } from "idb";
 
 type KeyPair = {
   public: string;
   private: string;
-}
+};
 
 type IdSig = {
   id: string;
@@ -19,11 +22,10 @@ export type DataSignature = {
   publicKey: string;
   created: string;
   software: string;
-}
+};
 
 // ====================================================================
-export class KeyStore
-{
+export class KeyStore {
   dbname: string;
   mainStore: string;
   key: string;
@@ -31,7 +33,12 @@ export class KeyStore
   _ready: Promise<void>;
   db: IDBPDatabase | null = null;
 
-  constructor({dbname = "_keystore", mainStore = "store", key = "id", version = 1} = {}) {
+  constructor({
+    dbname = "_keystore",
+    mainStore = "store",
+    key = "id",
+    version = 1,
+  } = {}) {
     this.dbname = dbname;
     this.mainStore = mainStore;
     this.key = key;
@@ -48,11 +55,15 @@ export class KeyStore
         this._initDB(db, oldV);
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      blocking: (e: any) => { if (!e || e.newVersion === null) { this.close(); }}
+      blocking: (e: any) => {
+        if (!e || e.newVersion === null) {
+          this.close();
+        }
+      },
     });
   }
 
-  _initDB(db: IDBPDatabase, oldV: number/*, newV, tx*/) {
+  _initDB(db: IDBPDatabase, oldV: number /*, newV, tx*/) {
     if (!oldV) {
       db.createObjectStore(this.mainStore, { keyPath: this.key });
     }
@@ -89,13 +100,12 @@ export class KeyStore
 }
 
 // ====================================================================
-export class Signer
-{
+export class Signer {
   softwareString: string;
   _store: KeyStore | null;
   cacheSig: boolean;
 
-  constructor(softwareString: string, opts: {cacheSig?: boolean} = {}) {
+  constructor(softwareString: string, opts: { cacheSig?: boolean } = {}) {
     this._store = new KeyStore();
     this.softwareString = softwareString || "ArchiveWeb.page";
     this.cacheSig = opts.cacheSig || false;
@@ -108,13 +118,13 @@ export class Signer
     }
   }
 
-  async sign(string: string, created: string) : Promise<DataSignature> {
-    let keyPair : CryptoKeyPair;
+  async sign(string: string, created: string): Promise<DataSignature> {
+    let keyPair: CryptoKeyPair;
     let keys = await this.loadKeys();
 
     const ecdsaImportParams = {
       name: "ECDSA",
-      namedCurve: "P-384"
+      namedCurve: "P-384",
     };
 
     const extractable = true;
@@ -122,17 +132,27 @@ export class Signer
 
     const ecdsaSignParams = {
       name: "ECDSA",
-      hash: "SHA-256"
+      hash: "SHA-256",
     };
 
     if (!keys) {
-      keyPair = await crypto.subtle.generateKey(ecdsaImportParams, extractable, usage);
+      keyPair = await crypto.subtle.generateKey(
+        ecdsaImportParams,
+        extractable,
+        usage,
+      );
 
-      const privateKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-      const publicKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+      const privateKey = await crypto.subtle.exportKey(
+        "pkcs8",
+        keyPair.privateKey,
+      );
+      const publicKey = await crypto.subtle.exportKey(
+        "spki",
+        keyPair.publicKey,
+      );
       keys = {
         private: encodeBase64(new Uint8Array(privateKey)),
-        public: encodeBase64(new Uint8Array(publicKey))
+        public: encodeBase64(new Uint8Array(publicKey)),
       };
 
       await this.saveKeys(keys);
@@ -140,16 +160,34 @@ export class Signer
       const privateDecoded = decodeBase64(keys.private);
       const publicDecoded = decodeBase64(keys.public);
 
-      const privateKey = await crypto.subtle.importKey("pkcs8", privateDecoded, ecdsaImportParams, true, ["sign"]);
-      const publicKey = await crypto.subtle.importKey("spki", publicDecoded, ecdsaImportParams, true, ["verify"]);
-      keyPair = {privateKey, publicKey};
+      const privateKey = await crypto.subtle.importKey(
+        "pkcs8",
+        privateDecoded,
+        ecdsaImportParams,
+        true,
+        ["sign"],
+      );
+      const publicKey = await crypto.subtle.importKey(
+        "spki",
+        publicDecoded,
+        ecdsaImportParams,
+        true,
+        ["verify"],
+      );
+      keyPair = { privateKey, publicKey };
     }
 
-    let signature : string | null = this.cacheSig ? await this.loadSig(string) : null;
+    let signature: string | null = this.cacheSig
+      ? await this.loadSig(string)
+      : null;
 
     if (!signature) {
       const data = new TextEncoder().encode(string);
-      const signatureBuff = await crypto.subtle.sign(ecdsaSignParams, keyPair.privateKey, data);
+      const signatureBuff = await crypto.subtle.sign(
+        ecdsaSignParams,
+        keyPair.privateKey,
+        data,
+      );
       signature = encodeBase64(new Uint8Array(signatureBuff));
       await this.saveSig(string, signature);
     }
@@ -161,25 +199,25 @@ export class Signer
       signature,
       publicKey: keys.public,
       created,
-      software: this.softwareString
+      software: this.softwareString,
     };
   }
 
   async saveSig(id: string, sig: string) {
-    return await this._store!.put({id, sig});
+    return await this._store!.put({ id, sig });
   }
 
-  async loadSig(id: string) : Promise<string> {
+  async loadSig(id: string): Promise<string> {
     const res = await this._store!.get(id);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return res?.sig;
   }
 
   async saveKeys(keys: KeyPair, id = "_userkey") {
-    return await this._store!.put({id, keys});
+    return await this._store!.put({ id, keys });
   }
 
-  async loadKeys(id = "_userkey") : Promise<KeyPair | null> {
+  async loadKeys(id = "_userkey"): Promise<KeyPair | null> {
     const res = await this._store!.get(id);
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return res?.keys;

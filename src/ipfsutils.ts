@@ -11,11 +11,13 @@ import Queue from "p-queue";
 import { type Link } from "@ipld/unixfs/file/layout/queue";
 import { type FileLink } from "@ipld/unixfs/directory";
 
-const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__, daemonURL: ""};
-
+const autoipfsOpts = {
+  web3StorageToken: __WEB3_STORAGE_TOKEN__,
+  daemonURL: "",
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let autoipfs : any = null;
+let autoipfs: any = null;
 
 type ReplayOpts = {
   filename?: string;
@@ -27,7 +29,7 @@ type ReplayOpts = {
   pageTitle?: string;
   deepLink?: boolean;
   loading?: boolean;
-}
+};
 
 export async function setAutoIPFSUrl(url: string) {
   if (autoipfsOpts.daemonURL !== url) {
@@ -36,7 +38,12 @@ export async function setAutoIPFSUrl(url: string) {
   autoipfsOpts.daemonURL = url;
 }
 
-export async function ipfsAdd(coll: Collection, downloaderOpts : DownloaderOpts, replayOpts : ReplayOpts = {}, progress: (incSize: number, totalSize: number) => void) {
+export async function ipfsAdd(
+  coll: Collection,
+  downloaderOpts: DownloaderOpts,
+  replayOpts: ReplayOpts = {},
+  progress: (incSize: number, totalSize: number) => void,
+) {
   if (!autoipfs) {
     autoipfs = await createAutoIPFS(autoipfsOpts);
   }
@@ -47,12 +54,12 @@ export async function ipfsAdd(coll: Collection, downloaderOpts : DownloaderOpts,
     const ZIP = new Uint8Array([]);
     const WARC_PAYLOAD = new Uint8Array([]);
     const WARC_GROUP = new Uint8Array([]);
-    downloaderOpts.markers = {ZIP, WARC_PAYLOAD, WARC_GROUP};
+    downloaderOpts.markers = { ZIP, WARC_PAYLOAD, WARC_GROUP };
   }
 
   const gzip = replayOpts.gzip !== undefined ? replayOpts.gzip : true;
 
-  const dl = new Downloader({...downloaderOpts, coll, filename, gzip});
+  const dl = new Downloader({ ...downloaderOpts, coll, filename, gzip });
   const dlResponse = await dl.download();
 
   if (!(dlResponse instanceof Response)) {
@@ -82,7 +89,7 @@ export async function ipfsAdd(coll: Collection, downloaderOpts : DownloaderOpts,
 
   const { readable, writable } = new TransformStream(
     {},
-    UnixFS.withCapacity(capacity)
+    UnixFS.withCapacity(capacity),
   );
 
   const baseUrl = replayOpts.replayBaseUrl || self.location.href;
@@ -103,17 +110,22 @@ export async function ipfsAdd(coll: Collection, downloaderOpts : DownloaderOpts,
   let totalSize = 0;
 
   if (coll.config.metadata?.size) {
-    totalSize = coll.config.metadata.size +
-    swContent.length + uiContent.length + (favicon ? favicon.length : 0) + htmlContent.length;
+    totalSize =
+      coll.config.metadata.size +
+      swContent.length +
+      uiContent.length +
+      (favicon ? favicon.length : 0) +
+      htmlContent.length;
   }
 
   progress(0, totalSize);
 
-  let url, cid = "";
+  let url,
+    cid = "";
 
-  let reject : ((reason?: string) => void) | null = null;
+  let reject: ((reason?: string) => void) | null = null;
 
-  const p2 = new Promise((res, rej) => reject = rej);
+  const p2 = new Promise((res, rej) => (reject = rej));
 
   const p = readable
     .pipeThrough(new ShardingStream(shardSize))
@@ -129,19 +141,24 @@ export async function ipfsAdd(coll: Collection, downloaderOpts : DownloaderOpts,
             progress(res.size, totalSize);
           }
         },
-      })
+      }),
     );
 
-  ipfsGenerateCar( 
-    writable, 
-    dlResponse.filename || "", dlResponse.body!,
-    swContent, uiContent, htmlContent, replayOpts,
-    downloaderOpts.markers!, favicon,
+  ipfsGenerateCar(
+    writable,
+    dlResponse.filename || "",
+    dlResponse.body!,
+    swContent,
+    uiContent,
+    htmlContent,
+    replayOpts,
+    downloaderOpts.markers!,
+    favicon,
   ).catch((e: unknown) => console.log("generate car failed", e));
 
   await Promise.race([p, p2]);
 
-  const res = {cid: cid.toString(), url};
+  const res = { cid: cid.toString(), url };
 
   coll.config.metadata.ipfsPins.push(res);
 
@@ -156,8 +173,7 @@ export async function ipfsRemove(coll: Collection) {
   }
 
   if (coll.config.metadata.ipfsPins) {
-
-    for (const {url} of coll.config.metadata.ipfsPins) {
+    for (const { url } of coll.config.metadata.ipfsPins) {
       try {
         await autoipfs.clear(url);
       } catch (_e) {
@@ -180,26 +196,37 @@ async function fetchBuffer(filename: string, replayBaseUrl: string) {
   return new Uint8Array(await resp.arrayBuffer());
 }
 
-async function ipfsWriteBuff(writer: UnixFS.View<Uint8Array>, name: string, content: Uint8Array | AsyncIterable<Uint8Array>,
-  dir: UnixFS.DirectoryWriterView<Uint8Array>) {
+async function ipfsWriteBuff(
+  writer: UnixFS.View<Uint8Array>,
+  name: string,
+  content: Uint8Array | AsyncIterable<Uint8Array>,
+  dir: UnixFS.DirectoryWriterView<Uint8Array>,
+) {
   const file = UnixFS.createFileWriter(writer);
   if (content instanceof Uint8Array) {
-    await file.write(content); 
+    await file.write(content);
   } else if (content[Symbol.asyncIterator]) {
     for await (const chunk of content) {
       await file.write(chunk);
     }
   }
-  const link = await file.close(); 
+  const link = await file.close();
   dir.set(name, link);
 }
 
 // ===========================================================================
-export async function ipfsGenerateCar(writable: WritableStream<UnixFS.Block>, waczPath: string, 
-  waczContent: ReadableStream<Uint8Array>, swContent: Uint8Array, 
+export async function ipfsGenerateCar(
+  writable: WritableStream<UnixFS.Block>,
+  waczPath: string,
+  waczContent: ReadableStream<Uint8Array>,
+  swContent: Uint8Array,
+  uiContent: Uint8Array,
+  htmlContent: string,
+  replayOpts: ReplayOpts,
+  markers: Markers,
+  favicon: Uint8Array | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  uiContent: Uint8Array, htmlContent: string, replayOpts: ReplayOpts, markers: Markers, favicon: Uint8Array | null) : Promise<any> {
-
+): Promise<any> {
   const writer = UnixFS.createWriter<Uint8Array>({ writable });
 
   const rootDir = UnixFS.createDirectoryWriter<Uint8Array>(writer);
@@ -220,27 +247,42 @@ export async function ipfsGenerateCar(writable: WritableStream<UnixFS.Block>, wa
     await ipfsWriteBuff(writer, "favicon.ico", favicon, rootDir);
   }
 
-  await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
+  await ipfsWriteBuff(
+    writer,
+    "index.html",
+    encoder.encode(htmlContent),
+    rootDir,
+  );
 
   if (!markers) {
     await ipfsWriteBuff(writer, waczPath, iterate(waczContent), rootDir);
   } else {
-    await splitByWarcRecordGroup(writer, waczPath, iterate(waczContent), rootDir, markers);
+    await splitByWarcRecordGroup(
+      writer,
+      waczPath,
+      iterate(waczContent),
+      rootDir,
+      markers,
+    );
   }
 
-  const {cid}  = await rootDir.close();
+  const { cid } = await rootDir.close();
 
   writer.close();
 
   return cid;
 }
 
-
-async function splitByWarcRecordGroup(writer: UnixFS.View<Uint8Array>, waczPath: string, 
-  warcIter: AsyncGenerator<Uint8Array>, rootDir: UnixFS.DirectoryWriterView<Uint8Array>, markers: Markers) {
-  let links : FileLink[] = [];
-  const fileLinks : FileLink[] = [];
-  let secondaryLinks : FileLink[] = [];
+async function splitByWarcRecordGroup(
+  writer: UnixFS.View<Uint8Array>,
+  waczPath: string,
+  warcIter: AsyncGenerator<Uint8Array>,
+  rootDir: UnixFS.DirectoryWriterView<Uint8Array>,
+  markers: Markers,
+) {
+  let links: FileLink[] = [];
+  const fileLinks: FileLink[] = [];
+  let secondaryLinks: FileLink[] = [];
 
   let inZipFile = false;
   let lastChunk = null;
@@ -248,13 +290,13 @@ async function splitByWarcRecordGroup(writer: UnixFS.View<Uint8Array>, waczPath:
 
   const decoder = new TextDecoder();
 
-  const dirs : Record<string, UnixFS.DirectoryWriterView<Uint8Array>> = {};
+  const dirs: Record<string, UnixFS.DirectoryWriterView<Uint8Array>> = {};
 
-  const {ZIP, WARC_PAYLOAD, WARC_GROUP} = markers;
+  const { ZIP, WARC_PAYLOAD, WARC_GROUP } = markers;
 
   let file = UnixFS.createFileWriter(writer);
 
-  function getDirAndName(fullpath: string) : [string, string] {
+  function getDirAndName(fullpath: string): [string, string] {
     const parts = fullpath.split("/");
     const filename = parts.pop() || "";
     return [parts.join("/"), filename];
@@ -276,9 +318,7 @@ async function splitByWarcRecordGroup(writer: UnixFS.View<Uint8Array>, waczPath:
         count = 0;
         file = UnixFS.createFileWriter(writer);
       }
-
     } else if (chunk === ZIP && inZipFile) {
-
       if (count) {
         links.push(await file.close());
         count = 0;
@@ -318,7 +358,6 @@ async function splitByWarcRecordGroup(writer: UnixFS.View<Uint8Array>, waczPath:
 
       inZipFile = false;
     } else if (chunk === WARC_PAYLOAD || chunk === WARC_GROUP) {
-
       if (!inZipFile) {
         throw new Error("invalid state");
       }
@@ -368,10 +407,13 @@ async function splitByWarcRecordGroup(writer: UnixFS.View<Uint8Array>, waczPath:
   rootDir.set(waczPath, await concat(writer, fileLinks));
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function concat(writer: UnixFS.View<Uint8Array>, links: Link[]) : Promise<any> {
+async function concat(
+  writer: UnixFS.View<Uint8Array>,
+  links: Link[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
   //TODO: is this the right way to do this?
-  const {fileEncoder, hasher, linker} = writer.settings;
+  const { fileEncoder, hasher, linker } = writer.settings;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const advanced = (fileEncoder as any).createAdvancedFile(links);
   const bytes = fileEncoder.encode(advanced);
@@ -428,7 +470,7 @@ export async function encodeBlocks(blocks: UnixFS.Block[], root?: any) {
   return Object.assign(new Blob(chunks), { version: 1, roots });
 }
 
-function getReplayHtml(waczPath: string, replayOpts : ReplayOpts = {}) {
+function getReplayHtml(waczPath: string, replayOpts: ReplayOpts = {}) {
   const { showEmbed, pageUrl, pageTitle, deepLink, loading } = replayOpts;
 
   return `
@@ -449,15 +491,16 @@ function getReplayHtml(waczPath: string, replayOpts : ReplayOpts = {}) {
       }
     </style>
   </head>
-  <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+  <body>${
+    showEmbed
+      ? `
+    <replay-web-page ${deepLink ? 'deepLink="true" ' : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>`
+      : `
     <replay-app-main skipRuffle source="${waczPath}"></replay-app-main>`
-}
+  }
   </body>
 </html>`;
 }
-
-
 
 // Copied from https://github.com/web3-storage/w3protocol/blob/main/packages/upload-client/src/sharding.js
 
@@ -473,9 +516,9 @@ export class ShardingStream extends TransformStream {
    */
   constructor(shardSize: number) {
     /** @type {import('@ipld/unixfs').Block[]} */
-    let shard : UnixFS.Block[] = [];
+    let shard: UnixFS.Block[] = [];
     /** @type {import('@ipld/unixfs').Block[] | null} */
-    let readyShard : UnixFS.Block[] | null = null;
+    let readyShard: UnixFS.Block[] | null = null;
     let readySize = 0;
 
     let currSize = 0;
@@ -485,7 +528,7 @@ export class ShardingStream extends TransformStream {
         if (readyShard != null) {
           const blocks = await encodeBlocks(readyShard);
           const size = readySize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
           readyShard = null;
         }
         if (shard.length && currSize + block.bytes.length > shardSize) {
@@ -502,14 +545,14 @@ export class ShardingStream extends TransformStream {
         if (readyShard != null) {
           const blocks = await encodeBlocks(readyShard);
           const size = readySize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
         }
 
         const rootBlock = shard.at(-1);
         if (rootBlock != null) {
           const blocks = await encodeBlocks(shard, rootBlock.cid);
           const size = currSize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
         }
       },
     });
@@ -528,12 +571,17 @@ export class ShardingStream extends TransformStream {
  * @extends {TransformStream<import('./types').CARFile, import('./types').CARMetadata>}
  */
 export class ShardStoringStream extends TransformStream {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(autoipfs: any, concurrency: number, reject: (reason?: any) => void) {
+  constructor(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    autoipfs: any,
+    concurrency: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reject: (reason?: any) => void,
+  ) {
     const queue = new Queue({ concurrency });
     const abortController = new AbortController();
     super({
-      async transform({blocks, size}, controller) {
+      async transform({ blocks, size }, controller) {
         void queue.add(
           async () => {
             try {
@@ -542,7 +590,7 @@ export class ShardStoringStream extends TransformStream {
               const resUrls = await autoipfs.uploadCAR(blocks);
               const url = resUrls[0];
 
-              controller.enqueue({cid, url, size});
+              controller.enqueue({ cid, url, size });
 
               //const { version, roots, size } = car
               //controller.enqueue({ version, roots, cid, size })
@@ -553,7 +601,7 @@ export class ShardStoringStream extends TransformStream {
               reject(err);
             }
           },
-          { signal: abortController.signal }
+          { signal: abortController.signal },
         );
 
         // retain backpressure by not returning until no items queued to be run

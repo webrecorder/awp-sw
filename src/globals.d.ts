@@ -6,4 +6,3 @@ declare const __WEB3_STORAGE_TOKEN__: string;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare type TODOFixMe = any;
-

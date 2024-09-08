@@ -31,13 +31,17 @@
     "build": "webpack --mode production",
     "build-dev": "webpack --mode development",
     "start-dev": "webpack serve --mode development --port 10001 --output-path ./dist --static ${PWD}",
-    "lint": "eslint ./src webpack.config.cjs"
+    "lint": "eslint ./src",
+    "format:check": "prettier --check ./src/",
+    "format": "prettier --write ./src/"
   },
   "devDependencies": {
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.4.0",
     "@typescript-eslint/parser": "^8.4.0",
     "eslint": "^8.56.1",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
     "raw-loader": "^4.0.2",
     "ts-loader": "^9.5.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",

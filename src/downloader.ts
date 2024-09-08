@@ -9,9 +9,18 @@ import { type IHasher } from "hash-wasm/dist/lib/WASMInterface.js";
 
 import { getSurt, WARCRecord, WARCSerializer } from "warcio";
 
-import { getTSMillis, getStatusText, digestMessage, type Collection, type ArchiveDB, type PageEntry, type ResourceEntry } from "@webrecorder/wabac/swlib";
+import {
+  getTSMillis,
+  getStatusText,
+  digestMessage,
+  type Collection,
+  type ArchiveDB,
+  type PageEntry,
+  type ResourceEntry,
+} from "@webrecorder/wabac/swlib";
 import { type DataSignature, type Signer } from "./keystore";
 
+export type SizeCallback = (size: number) => void;
 
 type ResponseWithFilename = Response & {
   filename?: string;
@@ -27,7 +36,7 @@ type FileStats = {
   filename: string;
   size: number;
   hash?: string;
-}
+};
 
 export type DownloaderOpts = {
   coll: Collection;
@@ -45,7 +54,7 @@ export type Markers = {
   ZIP?: Uint8Array;
   WARC_PAYLOAD?: Uint8Array;
   WARC_GROUP?: Uint8Array;
-}
+};
 
 type DLResourceEntry = ResourceEntry & {
   offset?: number;
@@ -53,7 +62,7 @@ type DLResourceEntry = ResourceEntry & {
   timestamp?: string;
   skipped?: boolean;
   text?: string;
-  
+
   pageId: string;
   digest: string;
 };
@@ -93,8 +102,11 @@ type DLPageData = {
   text?: string;
 };
 
-type Gen = AsyncGenerator<Uint8Array> | AsyncGenerator<string> | 
-           Generator<Uint8Array>| Generator<string>;
+type Gen =
+  | AsyncGenerator<Uint8Array>
+  | AsyncGenerator<string>
+  | Generator<Uint8Array>
+  | Generator<string>;
 
 type WARCVersion = "WARC/1.0" | "WARC/1.1";
 
@@ -132,8 +144,7 @@ export type Metadata = {
   desc?: string;
   status?: string;
   totalSize?: number;
-}
-
+};
 
 // ===========================================================================
 const WACZ_VERSION = "1.1.1";
@@ -156,8 +167,13 @@ async function* getPayload(payload: Uint8Array) {
   yield payload;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function* hashingGen(gen: Gen, stats: any, hasher: IHasher, sizeCallback: any, zipMarker?: Uint8Array) {
+async function* hashingGen(
+  gen: Gen,
+  stats: FileStats,
+  hasher: IHasher,
+  sizeCallback: SizeCallback | null,
+  zipMarker?: Uint8Array,
+) {
   stats.size = 0;
 
   hasher.init();
@@ -167,7 +183,7 @@ async function* hashingGen(gen: Gen, stats: any, hasher: IHasher, sizeCallback: 
   }
 
   for await (let chunk of gen) {
-    if (typeof(chunk) === "string") {
+    if (typeof chunk === "string") {
       chunk = encoder.encode(chunk);
     }
 
@@ -187,8 +203,7 @@ async function* hashingGen(gen: Gen, stats: any, hasher: IHasher, sizeCallback: 
 }
 
 // ===========================================================================
-class Downloader
-{
+class Downloader {
   db: ArchiveDB;
   pageList: string[] | null;
   collId: string;
@@ -207,7 +222,7 @@ class Downloader
   modifiedDate: string | null;
 
   format: string;
-  warcVersion : WARCVersion;
+  warcVersion: WARCVersion;
 
   digestOpts: {
     algo: string;
@@ -220,28 +235,36 @@ class Downloader
   signer: Signer | null;
 
   offset = 0;
-  firstResources : ResourceEntry[] = [];
-  textResources : DLResourceEntry[] = [];
-  cdxjLines : string[] = [];
+  firstResources: ResourceEntry[] = [];
+  textResources: DLResourceEntry[] = [];
+  cdxjLines: string[] = [];
 
   // compressed index (idx) entries
-  indexLines : string[] = [];
+  indexLines: string[] = [];
 
-  digestsVisted : Record<string, DigestCache> = {};
-  fileHasher : IHasher | null = null;
-  recordHasher : IHasher | null = null;
+  digestsVisted: Record<string, DigestCache> = {};
+  fileHasher: IHasher | null = null;
+  recordHasher: IHasher | null = null;
 
-  datapackageDigest : string = "";
+  datapackageDigest = "";
 
-  fileStats : FileStats[] = [];
+  fileStats: FileStats[] = [];
   hashType = "";
 
   lastUrl?: string;
   lastPageId?: string;
 
-  constructor({coll, format = "wacz", filename, pageList, signer,
-    softwareString, gzip = true, uuidNamespace, markers} : DownloaderOpts) {
-
+  constructor({
+    coll,
+    format = "wacz",
+    filename,
+    pageList,
+    signer,
+    softwareString,
+    gzip = true,
+    uuidNamespace,
+    markers,
+  }: DownloaderOpts) {
     this.db = coll.store;
     this.pageList = pageList || [];
     this.collId = coll.name;
@@ -258,24 +281,31 @@ class Downloader
 
     this.uuidNamespace = uuidNamespace || DEFAULT_UUID_NAMESPACE;
 
-    this.createdDateDt = new Date(coll.config["ctime"]);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    this.createdDateDt = new Date(coll.config.ctime);
     this.createdDate = this.createdDateDt.toISOString();
-    this.modifiedDate = coll.config["metadata"].mtime ? new Date(coll.config["metadata"].mtime).toISOString() : null;
+    this.modifiedDate = coll.config["metadata"].mtime
+      ? // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        new Date(coll.config.metadata.mtime).toISOString()
+      : null;
 
     this.format = format;
-    this.warcVersion = (format === "warc1.0") ? "WARC/1.0" : "WARC/1.1";
+    this.warcVersion = format === "warc1.0" ? "WARC/1.0" : "WARC/1.1";
 
     if (format === "warc1.0") {
-      this.digestOpts = {algo: "sha-1", prefix: "sha1:", base32: true};
+      this.digestOpts = { algo: "sha-1", prefix: "sha1:", base32: true };
     } else {
-      this.digestOpts = {algo: "sha-256", prefix: "sha256:"};
+      this.digestOpts = { algo: "sha-256", prefix: "sha256:" };
     }
 
     // determine filename from title, if it exists
     if (!filename && coll.config["metadata"].title) {
-      filename = encodeURIComponent(coll.config["metadata"].title.toLowerCase().replace(/\s/g, "-"));
+      filename = encodeURIComponent(
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        coll.config.metadata.title.toLowerCase().replace(/\s/g, "-"),
+      );
     }
-    
+
     if (!filename) {
       filename = "webarchive";
     }
@@ -284,54 +314,63 @@ class Downloader
     this.signer = signer || null;
   }
 
-  download(sizeCallback = null) {
+  async download(sizeCallback: SizeCallback | null = null) {
     switch (this.format) {
-    case "wacz":
-      return this.downloadWACZ(this.filename, sizeCallback);
+      case "wacz":
+        return this.downloadWACZ(this.filename, sizeCallback);
 
-    case "warc":
-    case "warc1.0":
-      return this.downloadWARC(this.filename, sizeCallback);
+      case "warc":
+      case "warc1.0":
+        return this.downloadWARC(this.filename, sizeCallback);
 
-    default:
-      return {"error": "invalid 'format': must be wacz or warc"};
+      default:
+        return { error: "invalid 'format': must be wacz or warc" };
     }
   }
 
-  downloadWARC(filename: string, sizeCallback = null) {
+  downloadWARC(filename: string, sizeCallback: SizeCallback | null = null) {
     filename = (filename || "webarchive").split(".")[0] + ".warc";
 
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const dl = this;
 
     const rs = new ReadableStream({
-      start(controller) {
-        dl.queueWARC(controller, filename, sizeCallback);
-      }
+      async start(controller) {
+        await dl.queueWARC(controller, filename, sizeCallback);
+      },
     });
 
     const headers = {
       "Content-Disposition": `attachment; filename="${filename}"`,
-      "Content-Type": "application/octet-stream"
+      "Content-Type": "application/octet-stream",
     };
 
-    const resp : ResponseWithFilename = new Response(rs, {headers});
+    const resp: ResponseWithFilename = new Response(rs, { headers });
     resp.filename = filename;
     return resp;
   }
 
-  async loadResourcesBlock(start : [string, number] | [] = []) : Promise<ResourceEntry[]> {
-    return await this.db.db!.getAll("resources", IDBKeyRange.lowerBound(start, true), RESOURCE_BATCH_SIZE);
+  async loadResourcesBlock(
+    start: [string, number] | [] = [],
+  ): Promise<ResourceEntry[]> {
+    return await this.db.db!.getAll(
+      "resources",
+      IDBKeyRange.lowerBound(start, true),
+      RESOURCE_BATCH_SIZE,
+    );
   }
 
-  async* iterResources(resources: ResourceEntry[]) {
-    let start : [string, number] | [] = [];
+  async *iterResources(resources: ResourceEntry[]) {
+    let start: [string, number] | [] = [];
     //let count = 0;
 
     while (resources.length) {
-      const last : ResourceEntry = resources[resources.length - 1] as ResourceEntry;
+      const last: ResourceEntry = resources[resources.length - 1]!;
 
       if (this.pageList) {
-        resources = resources.filter((res) => this.pageList!.includes(res.pageId || ""));
+        resources = resources.filter((res) =>
+          this.pageList!.includes(res.pageId || ""),
+        );
       }
       //count += resources.length;
       yield* resources;
@@ -344,8 +383,11 @@ class Downloader
     // }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async queueWARC(controller: ReadableStreamDefaultController, filename: string, sizeCallback: any) {
+  async queueWARC(
+    controller: ReadableStreamDefaultController,
+    filename: string,
+    sizeCallback: SizeCallback | null,
+  ) {
     this.firstResources = await this.loadResourcesBlock();
 
     for await (const chunk of this.generateWARC(filename)) {
@@ -365,9 +407,13 @@ class Downloader
     controller.close();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addFile(zip: ClientZipEntry[], filename: string, generator: Gen, sizeCallback: any/*, compressed = false*/) {
-    const stats = {filename, size: 0};
+  addFile(
+    zip: ClientZipEntry[],
+    filename: string,
+    generator: Gen,
+    sizeCallback: SizeCallback | null,
+  ) {
+    const stats: FileStats = { filename, size: 0 };
 
     if (filename !== DATAPACKAGE_FILENAME && filename !== DIGEST_FILENAME) {
       this.fileStats.push(stats);
@@ -376,7 +422,13 @@ class Downloader
     zip.push({
       name: filename,
       lastModified: this.createdDateDt,
-      input: hashingGen(generator, stats, this.fileHasher!, sizeCallback, this.markers.ZIP)
+      input: hashingGen(
+        generator,
+        stats,
+        this.fileHasher!,
+        sizeCallback,
+        this.markers.ZIP,
+      ),
     });
   }
 
@@ -390,46 +442,68 @@ class Downloader
     return `<urn:uuid:${uuidv5(name, this.uuidNamespace)}>`;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async downloadWACZ(filename: string, sizeCallback: any) {
+  async downloadWACZ(filename: string, sizeCallback: SizeCallback | null) {
     filename = (filename || "webarchive").split(".")[0] + ".wacz";
 
     this.fileHasher = await createSHA256();
     this.recordHasher = await createSHA256();
     this.hashType = "sha256";
 
-    const zip : ClientZipEntry[] = [];
+    const zip: ClientZipEntry[] = [];
 
     this.firstResources = await this.loadResourcesBlock();
 
     this.addFile(zip, "pages/pages.jsonl", this.generatePages(), sizeCallback);
-    this.addFile(zip, `archive/${this.warcName}`, this.generateWARC(filename + `#/archive/${this.warcName}`, true), sizeCallback);
+    this.addFile(
+      zip,
+      `archive/${this.warcName}`,
+      this.generateWARC(filename + `#/archive/${this.warcName}`, true),
+      sizeCallback,
+    );
     //this.addFile(zip, "archive/text.warc", this.generateTextWARC(filename + "#/archive/text.warc"), false);
 
     // don't use compressed index if we'll have a single block, need to have at least enough for 2 blocks
-    if (this.firstResources.length < (2 * LINES_PER_BLOCK)) {
+    if (this.firstResources.length < 2 * LINES_PER_BLOCK) {
       this.addFile(zip, "indexes/index.cdx", this.generateCDX(), sizeCallback);
     } else {
-      this.addFile(zip, "indexes/index.cdx.gz", this.generateCompressedCDX("index.cdx.gz"), sizeCallback);
+      this.addFile(
+        zip,
+        "indexes/index.cdx.gz",
+        this.generateCompressedCDX("index.cdx.gz"),
+        sizeCallback,
+      );
       this.addFile(zip, "indexes/index.idx", this.generateIDX(), sizeCallback);
     }
-    
-    this.addFile(zip, DATAPACKAGE_FILENAME, this.generateDataPackage(), sizeCallback);
 
-    this.addFile(zip, DIGEST_FILENAME, this.generateDataManifest(), sizeCallback);
+    this.addFile(
+      zip,
+      DATAPACKAGE_FILENAME,
+      this.generateDataPackage(),
+      sizeCallback,
+    );
+
+    this.addFile(
+      zip,
+      DIGEST_FILENAME,
+      this.generateDataManifest(),
+      sizeCallback,
+    );
 
     const headers = {
       "Content-Disposition": `attachment; filename="${filename}"`,
-      "Content-Type": "application/zip"
+      "Content-Type": "application/zip",
     };
 
     const rs = makeZip(zip);
-    const response : ResponseWithFilename = new Response(rs, {headers});
+    const response: ResponseWithFilename = new Response(rs, { headers });
     response.filename = filename;
     return response;
   }
 
-  async* generateWARC(filename: string, digestRecordAndCDX = false)  {
+  async *generateWARC(
+    filename: string,
+    digestRecordAndCDX = false,
+  ): AsyncGenerator<Uint8Array> {
     try {
       let offset = 0;
 
@@ -445,7 +519,7 @@ class Downloader
       }
 
       for await (const res of this.iterResources(this.firstResources)) {
-        const resource : DLResourceEntry = res as DLResourceEntry;
+        const resource: DLResourceEntry = res as DLResourceEntry;
         resource.offset = offset;
         const records = await this.createWARCRecord(resource);
         if (!records) {
@@ -454,7 +528,7 @@ class Downloader
         }
 
         // response record
-        const responseData : {length: number, digest?: string} = {length: 0};
+        const responseData: { length: number; digest?: string } = { length: 0 };
         yield* this.emitRecord(records[0]!, digestRecordAndCDX, responseData);
         offset += responseData.length;
         resource.length = responseData.length;
@@ -465,7 +539,7 @@ class Downloader
 
         // request record, if any
         if (records.length > 1) {
-          const requestData = {length: 0};
+          const requestData = { length: 0 };
           yield* this.emitRecord(records[1]!, false, requestData);
           offset += requestData.length;
         }
@@ -483,8 +557,12 @@ class Downloader
     }
   }
 
-  async* emitRecord(record: WARCRecord, doDigest: boolean, output: {length: number, digest?: string}) {
-    const opts = {gzip: this.gzip, digest: this.digestOpts};
+  async *emitRecord(
+    record: WARCRecord,
+    doDigest: boolean,
+    output: { length: number; digest?: string },
+  ) {
+    const opts = { gzip: this.gzip, digest: this.digestOpts };
     const s = new WARCSerializer(record, opts);
 
     const chunks = [];
@@ -494,7 +572,7 @@ class Downloader
 
     for await (const chunk of s) {
       if (doDigest) {
-        this.recordHasher!.update(chunk);
+        this.recordHasher!.update(chunk as Uint8Array);
       }
       chunks.push(chunk);
       output.length += chunk.length;
@@ -504,7 +582,12 @@ class Downloader
       output.digest = this.hashType + ":" + this.recordHasher!.digest("hex");
     }
 
-    if (!this.gzip && this.markers.WARC_PAYLOAD && record.warcType !== "request" && (chunks.length === 5 || chunks.length === 4)) {
+    if (
+      !this.gzip &&
+      this.markers.WARC_PAYLOAD &&
+      record.warcType !== "request" &&
+      (chunks.length === 5 || chunks.length === 4)
+    ) {
       if (chunks.length === 5) {
         yield chunks[0];
         yield chunks[1];
@@ -532,7 +615,7 @@ class Downloader
     }
   }
 
-  async* generateTextWARC(filename: string) {
+  async *generateTextWARC(filename: string) {
     try {
       let offset = 0;
 
@@ -555,15 +638,15 @@ class Downloader
     }
   }
 
-  getCDXJ(resource: DLResourceEntry, filename: string) : string {
-    const data : CDXJEntry = {
+  getCDXJ(resource: DLResourceEntry, filename: string): string {
+    const data: CDXJEntry = {
       url: resource.url,
-      digest: resource.digest!,
+      digest: resource.digest,
       mime: resource.mime!,
       offset: resource.offset!,
       length: resource.length!,
       recordDigest: resource.recordDigest!,
-      status: resource.status!
+      status: resource.status!,
     };
 
     if (filename) {
@@ -592,33 +675,35 @@ class Downloader
   *generateCompressedCDX(filename: string) {
     let offset = 0;
 
-    let chunkDeflater : Deflate | null = null;
+    let chunkDeflater: Deflate | null = null;
     let count = 0;
     let key = "";
 
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const dl = this;
 
     const finishChunk = () => {
       const data = chunkDeflater!.result as Uint8Array;
       const length = data.length;
       const digest = dl.recordDigest(data);
-  
-      const idx = key + " " + JSON.stringify({offset, length, digest, filename});
+
+      const idx =
+        key + " " + JSON.stringify({ offset, length, digest, filename });
 
       dl.indexLines.push(idx);
-  
+
       offset += length;
-  
+
       chunkDeflater = null;
       count = 0;
       key = "";
-  
+
       return data;
     };
 
     for (const cdx of this.generateCDX()) {
       if (!chunkDeflater) {
-        chunkDeflater = new Deflate({gzip: true});
+        chunkDeflater = new Deflate({ gzip: true });
       }
 
       if (!key) {
@@ -639,12 +724,15 @@ class Downloader
     }
   }
 
-  async* generateDataManifest() {
+  async *generateDataManifest() {
     const hash = this.datapackageDigest;
 
     const path = DATAPACKAGE_FILENAME;
 
-    const data : {path: string, hash: string, signedData?: DataSignature} = {path, hash};
+    const data: { path: string; hash: string; signedData?: DataSignature } = {
+      path,
+      hash,
+    };
 
     if (this.signer) {
       try {
@@ -652,7 +740,7 @@ class Downloader
 
         this.signer.close();
         this.signer = null;
-      } catch(e) {
+      } catch (e) {
         // failed to sign
         console.log(e);
       }
@@ -663,9 +751,8 @@ class Downloader
     yield res;
   }
 
-
-  async* generateDataPackage() {
-    const root : DataPackageJSON = {
+  async *generateDataPackage() {
+    const root: DataPackageJSON = {
       profile: "data-package",
 
       resources: this.fileStats.map((stats) => {
@@ -681,7 +768,7 @@ class Downloader
       wacz_version: WACZ_VERSION,
       software: this.softwareString,
       created: this.createdDate,
-    }
+    };
 
     if (this.metadata.title) {
       root.title = this.metadata.title;
@@ -699,20 +786,29 @@ class Downloader
     yield datapackageText;
   }
 
-  async* generatePages() {
-    const pageIter : ExtPageEntry[] = (this.pageList ? await this.db.getPages(this.pageList) : await this.db.getAllPages()) as ExtPageEntry[];
+  async *generatePages() {
+    const pageIter: ExtPageEntry[] = (
+      this.pageList
+        ? await this.db.getPages(this.pageList)
+        : await this.db.getAllPages()
+    ) as ExtPageEntry[];
 
-    yield JSON.stringify({"format": "json-pages-1.0", "id": "pages", "title": "All Pages", "hasText": true});
+    yield JSON.stringify({
+      format: "json-pages-1.0",
+      id: "pages",
+      title: "All Pages",
+      hasText: true,
+    });
 
     for (const page of pageIter) {
       const ts = new Date(page.ts).toISOString();
 
-      const pageData : DLPageData = {
+      const pageData: DLPageData = {
         title: page.title,
         url: page.url,
         id: page.id,
         size: page.size,
-        ts
+        ts,
       };
 
       if (page.favIconUrl) {
@@ -725,7 +821,13 @@ class Downloader
       yield "\n" + JSON.stringify(pageData);
 
       if (page.text) {
-        this.textResources.push({url: page.url, ts: page.ts, text: page.text, pageId: page.id, digest: ""});
+        this.textResources.push({
+          url: page.url,
+          ts: page.ts,
+          text: page.text,
+          pageId: page.id,
+          digest: "",
+        });
       }
     }
   }
@@ -741,7 +843,7 @@ class Downloader
     }
   }
 */
-  async* generateIDX() {
+  async *generateIDX() {
     yield this.indexLines.join("\n");
   }
 
@@ -750,21 +852,30 @@ class Downloader
     const type = "warcinfo";
 
     const info = {
-      "software": this.softwareString,
-      "format": (warcVersion === "WARC/1.0") ? "WARC File Format 1.0" : "WARC File Format 1.1",
-      "isPartOf": this.metadata["title"] || this.collId,
+      software: this.softwareString,
+      format:
+        warcVersion === "WARC/1.0"
+          ? "WARC File Format 1.0"
+          : "WARC File Format 1.1",
+      isPartOf: this.metadata["title"] || this.collId,
     };
 
     //info["json-metadata"] = JSON.stringify(metadata);
 
     const warcHeaders = {
-      "WARC-Record-ID": this.getWARCRecordUUID(JSON.stringify(info))
+      "WARC-Record-ID": this.getWARCRecordUUID(JSON.stringify(info)),
     };
 
     const date = this.createdDate;
 
-    const record = await WARCRecord.createWARCInfo({filename, type, date, warcHeaders, warcVersion}, info);
-    const buffer = await WARCSerializer.serialize(record, {gzip: this.gzip, digest: this.digestOpts});
+    const record = await WARCRecord.createWARCInfo(
+      { filename, type, date, warcHeaders, warcVersion },
+      info,
+    );
+    const buffer = await WARCSerializer.serialize(record, {
+      gzip: this.gzip,
+      digest: this.digestOpts,
+    });
     return buffer;
   }
 
@@ -776,19 +887,19 @@ class Downloader
     for (const [name] of Object.entries(headersMap)) {
       const lowerName = name.toLowerCase();
       switch (lowerName) {
-      case "content-encoding":
-      case "transfer-encoding":
-        if (this.alreadyDecoded) {
-          headersMap["x-orig-" + name] = headersMap[name]!;
-          delete headersMap[name];
-          ++count;
-        }
-        break;
+        case "content-encoding":
+        case "transfer-encoding":
+          if (this.alreadyDecoded) {
+            headersMap["x-orig-" + name] = headersMap[name]!;
+            delete headersMap[name];
+            ++count;
+          }
+          break;
 
-      case "content-length":
-        headersMap[name] = "" + length;
-        ++count;
-        break;
+        case "content-length":
+          headersMap[name] = "" + length;
+          ++count;
+          break;
       }
       if (count === numHeaders) {
         break;
@@ -805,12 +916,12 @@ class Downloader
 
     const pageId = resource.pageId;
 
-    let payload : Uint8Array | null | undefined = resource.payload;
-    let type : "response" | "request" | "resource" | "revisit";
+    let payload: Uint8Array | null | undefined = resource.payload;
+    let type: "response" | "request" | "resource" | "revisit";
 
     let refersToUrl, refersToDate;
     let refersToDigest;
-    let storeDigest : DigestCache | null = null;
+    let storeDigest: DigestCache | null = null;
 
     let method = "GET";
     let requestBody;
@@ -818,9 +929,17 @@ class Downloader
     // non-GET request/response:
     // if original request body + original requestURL is preserved, write that with original method
     // otherwise, just serialize the converted-to-GET form
-    if (resource.method && resource.method !== "GET" && resource.requestBody && resource.requestUrl) {
+    if (
+      resource.method &&
+      resource.method !== "GET" &&
+      resource.requestBody &&
+      resource.requestUrl
+    ) {
       // ensure payload is an arraybuffer
-      requestBody = typeof(resource.requestBody) === "string" ? encoder.encode(resource.requestBody) : resource.requestBody;
+      requestBody =
+        typeof resource.requestBody === "string"
+          ? encoder.encode(resource.requestBody)
+          : resource.requestBody;
       method = resource.method;
       url = resource.requestUrl;
     } else {
@@ -835,7 +954,11 @@ class Downloader
 
     if (resource.digest && digestOriginal) {
       // if exact resource in a row, and same page, then just skip instead of writing revisit
-      if (url === this.lastUrl && method === "GET" && pageId === this.lastPageId) {
+      if (
+        url === this.lastUrl &&
+        method === "GET" &&
+        pageId === this.lastPageId
+      ) {
         //console.log("Skip Dupe: " + url);
         return null;
       }
@@ -847,7 +970,6 @@ class Downloader
       refersToUrl = digestOriginal.url;
       refersToDate = digestOriginal.date;
       refersToDigest = digestOriginal.payloadDigest || resource.digest;
-
     } else if (resource.origURL && resource.origTS) {
       if (!resource.digest || !digestOriginal) {
         //console.log("Skip fuzzy resource with no digest");
@@ -861,11 +983,13 @@ class Downloader
       refersToUrl = resource.origURL;
       refersToDate = new Date(resource.origTS).toISOString();
       refersToDigest = digestOriginal.payloadDigest || resource.digest;
-
     } else {
       type = "response";
       if (!payload) {
-        payload = await this.db.loadPayload(resource, {}) as Uint8Array | null;
+        payload = (await this.db.loadPayload(
+          resource,
+          {},
+        )) as Uint8Array | null;
       }
 
       if (!payload) {
@@ -874,7 +998,7 @@ class Downloader
       }
 
       if (method === "GET") {
-        storeDigest = {url, date};
+        storeDigest = { url, date };
         this.digestsVisted[resource.digest] = storeDigest;
       }
     }
@@ -884,9 +1008,11 @@ class Downloader
 
     const statusline = `HTTP/1.1 ${status} ${statusText}`;
 
-    const responseRecordId = this.getWARCRecordUUID(type + ":" + resource.timestamp + "/" + resource.url);
+    const responseRecordId = this.getWARCRecordUUID(
+      type + ":" + resource.timestamp + "/" + resource.url,
+    );
 
-    const warcHeaders : Record<string, string> = {
+    const warcHeaders: Record<string, string> = {
       "WARC-Record-ID": responseRecordId,
     };
 
@@ -905,9 +1031,20 @@ class Downloader
     // remove encoding, set content-length as encoding never preserved in browser-based capture
     this.fixupHttpHeaders(httpHeaders, payload.length);
 
-    const record = await WARCRecord.create({
-      url, date, type, warcVersion, warcHeaders, statusline, httpHeaders,
-      refersToUrl, refersToDate}, getPayload(payload));
+    const record = await WARCRecord.create(
+      {
+        url,
+        date,
+        type,
+        warcVersion,
+        warcHeaders,
+        statusline,
+        httpHeaders,
+        refersToUrl,
+        refersToDate,
+      },
+      getPayload(payload),
+    );
 
     //const buffer = await WARCSerializer.serialize(record, {gzip: this.gzip, digest: this.digestOpts});
     if (!resource.digest && record.warcPayloadDigest) {
@@ -924,8 +1061,10 @@ class Downloader
 
     if (resource.reqHeaders) {
       const type = "request";
-      const reqWarcHeaders : Record<string, string> = {
-        "WARC-Record-ID": this.getWARCRecordUUID(type + ":" + resource.timestamp + "/" + resource.url),
+      const reqWarcHeaders: Record<string, string> = {
+        "WARC-Record-ID": this.getWARCRecordUUID(
+          type + ":" + resource.timestamp + "/" + resource.url,
+        ),
         "WARC-Page-ID": pageId,
         "WARC-Concurrent-To": responseRecordId,
       };
@@ -933,12 +1072,18 @@ class Downloader
       const urlParsed = new URL(url);
       const statusline = `${method} ${url.slice(urlParsed.origin.length)} HTTP/1.1`;
 
-      const reqRecord = await WARCRecord.create({
-        url, date, warcVersion, type,
-        warcHeaders: reqWarcHeaders,
-        httpHeaders: resource.reqHeaders,
-        statusline,
-      }, getPayload(requestBody));
+      const reqRecord = await WARCRecord.create(
+        {
+          url,
+          date,
+          warcVersion,
+          type,
+          warcHeaders: reqWarcHeaders,
+          httpHeaders: resource.reqHeaders,
+          statusline,
+        },
+        getPayload(requestBody),
+      );
 
       //records.push(await WARCSerializer.serialize(reqRecord, {gzip: this.gzip, digest: this.digestOpts}));
       records.push(reqRecord);
@@ -955,14 +1100,20 @@ class Downloader
     resource.url = url;
 
     const type = "resource";
-    const warcHeaders = {"Content-Type": "text/plain; charset=\"UTF-8\""};
+    const warcHeaders = { "Content-Type": 'text/plain; charset="UTF-8"' };
     const warcVersion = this.warcVersion;
 
     const payload = getPayload(encoder.encode(resource.text));
 
-    const record = await WARCRecord.create({url, date, warcHeaders, warcVersion, type}, payload);
+    const record = await WARCRecord.create(
+      { url, date, warcHeaders, warcVersion, type },
+      payload,
+    );
 
-    const buffer = await WARCSerializer.serialize(record, {gzip: this.gzip, digest: this.digestOpts});
+    const buffer = await WARCSerializer.serialize(record, {
+      gzip: this.gzip,
+      digest: this.digestOpts,
+    });
     if (!resource.digest && record.warcPayloadDigest) {
       resource.digest = record.warcPayloadDigest;
     }
@@ -971,4 +1122,3 @@ class Downloader
 }
 
 export { Downloader };
-

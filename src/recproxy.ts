@@ -1,18 +1,25 @@
-import { type ADBType, ArchiveDB, type ArchiveRequest, type ArchiveResponse, type CollectionLoader, LiveProxy, SWCollections, randomId } from "@webrecorder/wabac/swlib";
+import {
+  type ADBType,
+  ArchiveDB,
+  type ArchiveRequest,
+  type ArchiveResponse,
+  type CollectionLoader,
+  LiveProxy,
+  SWCollections,
+  randomId,
+} from "@webrecorder/wabac/swlib";
 import { type IDBPDatabase, type IDBPTransaction } from "idb";
 import { postToGetUrl } from "warcio";
 
 //export interface RecDBType extends ADBType {
 export type RecDBType = ADBType & {
   rec: {
-    key: string
-  }
+    key: string;
+  };
 };
 
-
 // ===========================================================================
-export class RecProxy extends ArchiveDB
-{
+export class RecProxy extends ArchiveDB {
   collLoader: CollectionLoader;
   recordProxied: boolean;
   liveProxy: LiveProxy;
@@ -33,7 +40,10 @@ export class RecProxy extends ArchiveDB
     this.recordProxied = config.extraConfig.recordProxied || false;
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    this.liveProxy = new LiveProxy(config.extraConfig, {cloneResponse: true, allowBody: true});
+    this.liveProxy = new LiveProxy(config.extraConfig, {
+      cloneResponse: true,
+      allowBody: true,
+    });
 
     this.pageId = randomId();
     this.isNew = true;
@@ -42,11 +52,16 @@ export class RecProxy extends ArchiveDB
     this.counter = 0;
   }
 
-  override _initDB(db: IDBPDatabase<ADBType>, oldV: number, newV: number | null, tx: IDBPTransaction<
-    ADBType,
-    (keyof ADBType)[],
-    "readwrite" | "versionchange"
-  >) {
+  override _initDB(
+    db: IDBPDatabase<ADBType>,
+    oldV: number,
+    newV: number | null,
+    tx: IDBPTransaction<
+      ADBType,
+      (keyof ADBType)[],
+      "readwrite" | "versionchange"
+    >,
+  ) {
     super._initDB(db, oldV, newV, tx);
     //TODO: fix
     (db as unknown as IDBPDatabase<RecDBType>).createObjectStore("rec");
@@ -60,7 +75,7 @@ export class RecProxy extends ArchiveDB
     await (this.db! as any).put("rec", this.counter, "numPending");
   }
 
-  async getCounter() : Promise<number | undefined> {
+  async getCounter(): Promise<number | undefined> {
     //TODO: fix
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return
     return await (this.db! as any).get("rec", "numPending");
@@ -68,14 +83,14 @@ export class RecProxy extends ArchiveDB
 
   override async getResource(request: ArchiveRequest, prefix: string) {
     let req;
-    
+
     if (request.method === "POST" || request.method === "PUT") {
       req = request.request.clone();
     } else {
       req = request.request;
     }
 
-    let response : ArchiveResponse | null = null;
+    let response: ArchiveResponse | null = null;
 
     try {
       this.counter++;
@@ -97,7 +112,9 @@ export class RecProxy extends ArchiveDB
       }
     }
 
-    this.doRecord(response!, req).catch(() => {}).finally(async () => this.decCounter());
+    this.doRecord(response!, req)
+      .catch(() => {})
+      .finally(async () => this.decCounter());
 
     return response;
   }
@@ -121,7 +138,9 @@ export class RecProxy extends ArchiveDB
     const respHeaders = Object.fromEntries(response.headers.entries());
     const reqHeaders = Object.fromEntries(request.headers.entries());
 
-    const payload = new Uint8Array(await response.clonedResponse!.arrayBuffer());
+    const payload = new Uint8Array(
+      await response.clonedResponse!.arrayBuffer(),
+    );
 
     if (range) {
       const expectedRange = `bytes 0-${payload.length - 1}/${payload.length}`;
@@ -165,7 +184,7 @@ export class RecProxy extends ArchiveDB
       mime,
       respHeaders,
       reqHeaders,
-      referrer
+      referrer,
     };
 
     await this.addResource(data);
@@ -173,26 +192,29 @@ export class RecProxy extends ArchiveDB
     await this.collLoader.updateSize(this.name, payload.length, payload.length);
 
     // don't add page for redirects
-    if (this.isNew && (status < 301 || status >= 400) && request.mode === "navigate") {
+    if (
+      this.isNew &&
+      (status < 301 || status >= 400) &&
+      request.mode === "navigate"
+    ) {
       //console.log("Page", url, "Referrer", referrer);
-      await this.addPages([{id: pageId, url, ts}]);
+      await this.addPages([{ id: pageId, url, ts }]);
       this.isNew = false;
     }
   }
 }
 
 // ===========================================================================
-export class RecordingCollections extends SWCollections
-{
+export class RecordingCollections extends SWCollections {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   override async _initStore(type: string, config: any) {
     let store;
 
     switch (type) {
-    case "recordingproxy":
-      store = new RecProxy(config, this);
-      await store.initing;
-      return store;
+      case "recordingproxy":
+        store = new RecProxy(config, this);
+        await store.initing;
+        return store;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
