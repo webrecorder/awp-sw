@@ -1,4 +1,4 @@
-import { type Collection } from "@webrecorder/wabac/swlib";
+import { type CollMetadata, type Collection } from "@webrecorder/wabac/swlib";
 import { Downloader, type DownloaderOpts, type Markers } from "./downloader";
 
 // @ts-expect-error no types
@@ -30,6 +30,10 @@ type ReplayOpts = {
   deepLink?: boolean;
   loading?: boolean;
 };
+
+type MetadataWithIPFS = CollMetadata & {
+  ipfsPins?: {url: string, cid: string}[] | null;
+}
 
 export async function setAutoIPFSUrl(url: string) {
   if (autoipfsOpts.daemonURL !== url) {
@@ -66,8 +70,10 @@ export async function ipfsAdd(
     throw new Error(dlResponse.error);
   }
 
-  if (!coll.config.metadata.ipfsPins) {
-    coll.config.metadata.ipfsPins = [];
+  const metadata : MetadataWithIPFS = coll.config.metadata || {};
+
+  if (!metadata.ipfsPins) {
+    metadata.ipfsPins = [];
   }
 
   let concur;
@@ -120,8 +126,8 @@ export async function ipfsAdd(
 
   progress(0, totalSize);
 
-  let url,
-    cid = "";
+  let url = "";
+  let cid = "";
 
   let reject: ((reason?: string) => void) | null = null;
 
@@ -132,7 +138,7 @@ export async function ipfsAdd(
     .pipeThrough(new ShardStoringStream(autoipfs, concur, reject!))
     .pipeTo(
       new WritableStream({
-        write: (res) => {
+        write: (res: {url: string, cid: string, size: number}) => {
           if (res.url && res.cid) {
             url = res.url;
             cid = res.cid;
@@ -160,7 +166,7 @@ export async function ipfsAdd(
 
   const res = { cid: cid.toString(), url };
 
-  coll.config.metadata.ipfsPins.push(res);
+  metadata.ipfsPins.push(res);
 
   console.log("ipfs cid added " + url);
 
@@ -172,8 +178,10 @@ export async function ipfsRemove(coll: Collection) {
     autoipfs = await createAutoIPFS(autoipfsOpts);
   }
 
-  if (coll.config.metadata.ipfsPins) {
-    for (const { url } of coll.config.metadata.ipfsPins) {
+  const metadata : MetadataWithIPFS = coll.config.metadata || {};
+
+  if (metadata.ipfsPins) {
+    for (const { url } of metadata.ipfsPins) {
       try {
         await autoipfs.clear(url);
       } catch (_e) {
@@ -183,7 +191,7 @@ export async function ipfsRemove(coll: Collection) {
       }
     }
 
-    coll.config.metadata.ipfsPins = null;
+    metadata.ipfsPins = null;
     return true;
   }
 
@@ -205,6 +213,7 @@ async function ipfsWriteBuff(
   const file = UnixFS.createFileWriter(writer);
   if (content instanceof Uint8Array) {
     await file.write(content);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   } else if (content[Symbol.asyncIterator]) {
     for await (const chunk of content) {
       await file.write(chunk);
@@ -223,7 +232,7 @@ export async function ipfsGenerateCar(
   uiContent: Uint8Array,
   htmlContent: string,
   replayOpts: ReplayOpts,
-  markers: Markers,
+  markers: Markers | null,
   favicon: Uint8Array | null,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<any> {
@@ -268,7 +277,7 @@ export async function ipfsGenerateCar(
 
   const { cid } = await rootDir.close();
 
-  writer.close();
+  await writer.close();
 
   return cid;
 }
@@ -338,6 +347,7 @@ async function splitByWarcRecordGroup(
         links = [];
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       fileLinks.push(link);
 
       const [dirName, filename] = getDirAndName(currName);
@@ -354,6 +364,7 @@ async function splitByWarcRecordGroup(
         dir = dirs[dirName];
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       dir.set(filename, link);
 
       inZipFile = false;
@@ -368,6 +379,7 @@ async function splitByWarcRecordGroup(
         file = UnixFS.createFileWriter(writer);
 
         if (chunk === WARC_GROUP) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           secondaryLinks.push(await concat(writer, links));
           links = [];
         }
@@ -376,7 +388,7 @@ async function splitByWarcRecordGroup(
       if (!inZipFile) {
         lastChunk = chunk;
       }
-      file.write(chunk);
+      await file.write(chunk);
       count++;
     }
   }
@@ -404,6 +416,7 @@ async function splitByWarcRecordGroup(
 
   rootDir.set("webarchive", await waczDir.close());
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   rootDir.set(waczPath, await concat(writer, fileLinks));
 }
 
@@ -416,6 +429,7 @@ async function concat(
   const { fileEncoder, hasher, linker } = writer.settings;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const advanced = (fileEncoder as any).createAdvancedFile(links);
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const bytes = fileEncoder.encode(advanced);
   const hash = await hasher.digest(bytes);
   const cid = linker.createLink(fileEncoder.code, hash);
@@ -435,6 +449,7 @@ async function concat(
 
 export const iterate = async function* (stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     const next = await reader.read();
     if (next.done) {
@@ -447,6 +462,7 @@ export const iterate = async function* (stream: ReadableStream<Uint8Array>) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function encodeBlocks(blocks: UnixFS.Block[], root?: any) {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const { writer, out } = CarWriter.create(root);
   /** @type {Error?} */
   let error;
@@ -464,6 +480,7 @@ export async function encodeBlocks(blocks: UnixFS.Block[], root?: any) {
   })();
   const chunks = [];
   for await (const chunk of out) chunks.push(chunk);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (error != null) throw error;
   const roots = root != null ? [root] : [];
   console.log("chunks", chunks.length);
@@ -537,6 +554,7 @@ export class ShardingStream extends TransformStream {
           shard = [];
           currSize = 0;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         shard.push(block);
         currSize += block.bytes.length;
       },

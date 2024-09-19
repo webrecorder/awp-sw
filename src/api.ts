@@ -170,12 +170,12 @@ class ExtAPI extends API {
         signal,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
-      uploading.set(params["coll"], counter);
+      uploading.set(params.coll, counter);
       if (event.waitUntil) {
         event.waitUntil(
           this.uploadFinished(
             fetchPromise,
-            params["coll"],
+            params.coll,
             dl.metadata,
             filename,
             counter,
@@ -184,7 +184,7 @@ class ExtAPI extends API {
       }
       return { uploading: true };
     } catch (e: unknown) {
-      uploading.delete(params["coll"]);
+      uploading.delete(params.coll);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return { error: "upload_failed", details: (e as any).toString() };
     }
@@ -224,7 +224,7 @@ class ExtAPI extends API {
   }
 
   async deleteUpload(params: RouteMatch) {
-    const collId = params["coll"];
+    const collId = params.coll;
 
     this.uploading.delete(collId);
 
@@ -242,7 +242,7 @@ class ExtAPI extends API {
 
   async getUploadStatus(params: RouteMatch) {
     let result: Metadata = {};
-    const counter = this.uploading.get(params["coll"]);
+    const counter = this.uploading.get(params.coll);
 
     if (!counter) {
       result = { status: "idle" };
@@ -251,11 +251,11 @@ class ExtAPI extends API {
       result = { status, size, totalSize };
 
       if (status !== "uploading") {
-        this.uploading.delete(params["coll"]);
+        this.uploading.delete(params.coll);
       }
     }
 
-    const coll = await this.collections.loadColl(params["coll"]);
+    const coll = await this.collections.loadColl(params.coll);
 
     if (coll?.metadata) {
       result.uploadTime = coll.metadata.uploadTime;
@@ -268,7 +268,7 @@ class ExtAPI extends API {
   }
 
   async recordingPending(params: RouteMatch) {
-    const coll = await this.collections.loadColl(params["coll"]);
+    const coll = await this.collections.loadColl(params.coll);
     if (!coll) {
       return { error: "collection_not_found" };
     }
@@ -435,7 +435,9 @@ async function runIPFSAdd(
 
   sendMessage("ipfsAdd", result);
 
-  await collections.updateMetadata(coll.name, coll.config["metadata"]);
+  if (coll.config.metadata) {
+    await collections.updateMetadata(coll.name, coll.config.metadata);
+  }
 }
 
 // ===========================================================================

@@ -268,7 +268,7 @@ class Downloader {
     this.db = coll.store;
     this.pageList = pageList || [];
     this.collId = coll.name;
-    this.metadata = coll.config["metadata"];
+    this.metadata = coll.config.metadata || {};
     this.gzip = gzip;
 
     this.markers = markers || {};
@@ -281,12 +281,10 @@ class Downloader {
 
     this.uuidNamespace = uuidNamespace || DEFAULT_UUID_NAMESPACE;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-    this.createdDateDt = new Date(coll.config.ctime);
+    this.createdDateDt = new Date(coll.config.ctime!);
     this.createdDate = this.createdDateDt.toISOString();
-    this.modifiedDate = coll.config["metadata"].mtime
-      ? // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        new Date(coll.config.metadata.mtime).toISOString()
+    this.modifiedDate = coll.config.metadata!.mtime
+      ? new Date(coll.config.metadata!.mtime).toISOString()
       : null;
 
     this.format = format;
@@ -299,10 +297,9 @@ class Downloader {
     }
 
     // determine filename from title, if it exists
-    if (!filename && coll.config["metadata"].title) {
+    if (!filename && coll.config.metadata!.title) {
       filename = encodeURIComponent(
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        coll.config.metadata.title.toLowerCase().replace(/\s/g, "-"),
+        coll.config.metadata!.title.toLowerCase().replace(/\s/g, "-"),
       );
     }
 

@@ -8,15 +8,19 @@ const BANNER_TEXT = `'[name].js is part of the ArchiveWeb.page system (https://a
 
 
 module.exports = {
-  target: "webworker",
+  target: "web",
   entry: {
     "main": "./src/index.ts",
   },
   output: {
     filename: "sw.js",
+    globalObject: "self",
     library: {
-      type: "self"
+      type: "module"
     }
+  },
+  experiments: {
+    outputModule: true
   },
   optimization: {
     minimize: true,
