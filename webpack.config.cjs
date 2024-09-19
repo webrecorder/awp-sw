@@ -13,7 +13,7 @@ module.exports = {
     "main": "./src/index.ts",
   },
   output: {
-    filename: "sw.js",
+    filename: "index.js",
     globalObject: "self",
     library: {
       type: "module"
