@@ -32,8 +32,8 @@ type ReplayOpts = {
 };
 
 type MetadataWithIPFS = CollMetadata & {
-  ipfsPins?: {url: string, cid: string}[] | null;
-}
+  ipfsPins?: { url: string; cid: string }[] | null;
+};
 
 export async function setAutoIPFSUrl(url: string) {
   if (autoipfsOpts.daemonURL !== url) {
@@ -70,7 +70,7 @@ export async function ipfsAdd(
     throw new Error(dlResponse.error);
   }
 
-  const metadata : MetadataWithIPFS = coll.config.metadata || {};
+  const metadata: MetadataWithIPFS = coll.config.metadata || {};
 
   if (!metadata.ipfsPins) {
     metadata.ipfsPins = [];
@@ -138,7 +138,7 @@ export async function ipfsAdd(
     .pipeThrough(new ShardStoringStream(autoipfs, concur, reject!))
     .pipeTo(
       new WritableStream({
-        write: (res: {url: string, cid: string, size: number}) => {
+        write: (res: { url: string; cid: string; size: number }) => {
           if (res.url && res.cid) {
             url = res.url;
             cid = res.cid;
@@ -178,7 +178,7 @@ export async function ipfsRemove(coll: Collection) {
     autoipfs = await createAutoIPFS(autoipfsOpts);
   }
 
-  const metadata : MetadataWithIPFS = coll.config.metadata || {};
+  const metadata: MetadataWithIPFS = coll.config.metadata || {};
 
   if (metadata.ipfsPins) {
     for (const { url } of metadata.ipfsPins) {
@@ -213,7 +213,7 @@ async function ipfsWriteBuff(
   const file = UnixFS.createFileWriter(writer);
   if (content instanceof Uint8Array) {
     await file.write(content);
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   } else if (content[Symbol.asyncIterator]) {
     for await (const chunk of content) {
       await file.write(chunk);
@@ -247,7 +247,7 @@ export async function ipfsGenerateCar(
   if (replayOpts.showEmbed) {
     const replayDir = UnixFS.createDirectoryWriter(writer);
     await ipfsWriteBuff(writer, "sw.js", swContent, replayDir);
-    await rootDir.set("replay", await replayDir.close());
+    rootDir.set("replay", await replayDir.close());
   } else {
     await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
   }

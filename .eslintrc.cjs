@@ -97,6 +97,7 @@ module.exports = {
     "@typescript-eslint/restrict-template-expressions": "warn",
     "@typescript-eslint/unbound-method": "off",
     "@typescript-eslint/method-signature-style": "error",
+    "@typescript-eslint/await-thenable": "error",
   },
   reportUnusedDisableDirectives: true,
   ignorePatterns: ["__generated__", "__mocks__", "dist", "static"],

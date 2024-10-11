@@ -22,7 +22,7 @@ import { type DataSignature, type Signer } from "./keystore";
 
 export type SizeCallback = (size: number) => void;
 
-type ResponseWithFilename = Response & {
+export type ResponseWithFilename = Response & {
   filename?: string;
 };
 
@@ -266,7 +266,7 @@ class Downloader {
     markers,
   }: DownloaderOpts) {
     this.db = coll.store;
-    this.pageList = pageList || [];
+    this.pageList = pageList || null;
     this.collId = coll.name;
     this.metadata = coll.config.metadata || {};
     this.gzip = gzip;
@@ -865,7 +865,7 @@ class Downloader {
 
     const date = this.createdDate;
 
-    const record = await WARCRecord.createWARCInfo(
+    const record = WARCRecord.createWARCInfo(
       { filename, type, date, warcHeaders, warcVersion },
       info,
     );
@@ -1028,7 +1028,7 @@ class Downloader {
     // remove encoding, set content-length as encoding never preserved in browser-based capture
     this.fixupHttpHeaders(httpHeaders, payload.length);
 
-    const record = await WARCRecord.create(
+    const record = WARCRecord.create(
       {
         url,
         date,
@@ -1069,7 +1069,7 @@ class Downloader {
       const urlParsed = new URL(url);
       const statusline = `${method} ${url.slice(urlParsed.origin.length)} HTTP/1.1`;
 
-      const reqRecord = await WARCRecord.create(
+      const reqRecord = WARCRecord.create(
         {
           url,
           date,
@@ -1102,7 +1102,7 @@ class Downloader {
 
     const payload = getPayload(encoder.encode(resource.text));
 
-    const record = await WARCRecord.create(
+    const record = WARCRecord.create(
       { url, date, warcHeaders, warcVersion, type },
       payload,
     );
