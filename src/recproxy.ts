@@ -4,10 +4,14 @@ import {
   type ArchiveRequest,
   type ArchiveResponse,
   type CollectionLoader,
+  type PageEntry,
   LiveProxy,
   SWCollections,
   randomId,
 } from "@webrecorder/wabac/swlib";
+
+//declare let self: ServiceWorkerGlobalScope;
+
 import { type IDBPDatabase, type IDBPTransaction } from "idb";
 import { postToGetUrl } from "warcio";
 
@@ -16,6 +20,16 @@ export type RecDBType = ADBType & {
   rec: {
     key: string;
   };
+};
+
+export type ExtPageEntry = PageEntry & {
+  id: string;
+  title: string;
+  size: number;
+  ts: number;
+
+  favIconUrl?: string;
+  text?: string;
 };
 
 // ===========================================================================
@@ -27,6 +41,8 @@ export class RecProxy extends ArchiveDB {
   isNew = true;
   firstPageOnly: boolean;
   counter = 0;
+  isRecording = true;
+  allPages = new Map<string, string>();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(config: any, collLoader: CollectionLoader) {
@@ -81,7 +97,11 @@ export class RecProxy extends ArchiveDB {
     return await (this.db! as any).get("rec", "numPending");
   }
 
-  override async getResource(request: ArchiveRequest, prefix: string) {
+  override async getResource(request: ArchiveRequest, prefix: string, event: FetchEvent) {
+    if (!this.isRecording) {
+      return await super.getResource(request, prefix, event);
+    }
+
     let req;
 
     if (request.method === "POST" || request.method === "PUT") {
@@ -100,7 +120,11 @@ export class RecProxy extends ArchiveDB {
       return null;
     }
 
-    //this.cookie = response.headers.get("x-wabac-preset-cookie");
+    // error response, don't record
+    if (response?.noRW && response.status >= 400) {
+      await this.decCounter();
+      return response;
+    }
 
     // don't record content proxied from specified hosts
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -112,14 +136,14 @@ export class RecProxy extends ArchiveDB {
       }
     }
 
-    this.doRecord(response!, req)
+    this.doRecord(response!, req, request.mod)
       .catch(() => {})
       .finally(async () => this.decCounter());
 
     return response;
   }
 
-  async doRecord(response: ArchiveResponse, request: Request) {
+  async doRecord(response: ArchiveResponse, request: Request, mod: string) {
     let url = response.url;
     const ts = response.date.getTime();
 
@@ -150,7 +174,7 @@ export class RecProxy extends ArchiveDB {
       }
     }
 
-    if (request.mode === "navigate") {
+    if (request.mode === "navigate" && mod === "mp_") {
       this.pageId = randomId();
       if (!this.firstPageOnly) {
         this.isNew = true;
@@ -158,7 +182,6 @@ export class RecProxy extends ArchiveDB {
     }
 
     const pageId = this.pageId;
-
     const referrer = request.referrer;
 
     if (request.method === "POST" || request.method === "PUT") {
@@ -192,14 +215,59 @@ export class RecProxy extends ArchiveDB {
     await this.collLoader.updateSize(this.name, payload.length, payload.length);
 
     // don't add page for redirects
-    if (
-      this.isNew &&
-      (status < 301 || status >= 400) &&
-      request.mode === "navigate"
-    ) {
-      //console.log("Page", url, "Referrer", referrer);
+    if (this.isPage(url, request, status, referrer, mod)) {
       await this.addPages([{ id: pageId, url, ts }]);
+      this.allPages.set(url, pageId);
       this.isNew = false;
+    } else {
+      console.log("not page", url);
+    }
+  }
+
+  isPage(url: string, request: Request, status: number, referrer: string, mod: string) {
+    if (!this.isNew) {
+      return false;
+    }
+
+    if ((status >= 301 && status < 400) || status === 204) {
+      return false;
+    }
+
+    if (request.mode !== "navigate" || mod !== "mp_") {
+      return false;
+    }
+
+    if (!referrer) {
+      return true;
+    }
+
+    const inx = referrer.indexOf("mp_/");
+    if (inx > 0) {
+      const refUrl = referrer.slice(inx + 4);
+      return url === refUrl || this.allPages.has(refUrl);
+    } else if (referrer.indexOf("if_/") > 0) {
+      return false;
+    } else if (referrer.indexOf("?source=")) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  async updateFavIcon(url: string, favIconUrl: string) {
+    const pageId = this.allPages.get(url);
+    if (!pageId) {
+      return;
+    }
+    const page = await this.db!.get("pages", pageId) as ExtPageEntry | undefined;
+    if (!page) {
+      return;
+    }
+    page.favIconUrl = favIconUrl;
+    try {
+      await this.db!.put("pages", page);
+    } catch (_e: unknown) {
+      // ignore
     }
   }
 }
@@ -219,5 +287,33 @@ export class RecordingCollections extends SWCollections {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     return await super._initStore(type, config);
+  }
+
+  override async _handleMessage(event: MessageEvent) {
+    let coll;
+
+    switch (event.data.msg_type) {
+      case "toggle-record":
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        coll = await this.getColl(event.data.id);
+        if (coll && coll.store instanceof RecProxy) {
+          console.log("Recording Toggled!", event.data.isRecording);
+          coll.store.isRecording = event.data.isRecording;
+        }
+        break;
+
+      case "update-favicon":
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        coll = await this.getColl(event.data.id);
+        if (coll && coll.store instanceof RecProxy) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          await coll.store.updateFavIcon(event.data.url, event.data.favIconUrl);
+        }
+        break;
+
+
+      default:
+        return await super._handleMessage(event);
+    }
   }
 }

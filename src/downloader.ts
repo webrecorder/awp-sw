@@ -15,10 +15,10 @@ import {
   digestMessage,
   type Collection,
   type ArchiveDB,
-  type PageEntry,
   type ResourceEntry,
 } from "@webrecorder/wabac/swlib";
 import { type DataSignature, type Signer } from "./keystore";
+import { type ExtPageEntry } from "./recproxy";
 
 export type SizeCallback = (size: number) => void;
 
@@ -79,16 +79,6 @@ type CDXJEntry = {
   method?: string;
   filename?: string;
   requestBody?: string;
-};
-
-type ExtPageEntry = PageEntry & {
-  id: string;
-  title: string;
-  size: number;
-  ts: number;
-
-  favIconUrl?: string;
-  text?: string;
 };
 
 type DLPageData = {
