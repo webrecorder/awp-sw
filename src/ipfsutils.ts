@@ -1,24 +1,53 @@
-import { Downloader } from "./downloader.js";
+import { type CollMetadata, type Collection } from "@webrecorder/wabac/swlib";
+import { Downloader, type DownloaderOpts, type Markers } from "./downloader";
 
+// @ts-expect-error no types
 import { create as createAutoIPFS } from "auto-js-ipfs";
 
 import * as UnixFS from "@ipld/unixfs";
 import { CarWriter } from "@ipld/car/writer";
 import Queue from "p-queue";
 
-// eslint-disable-next-line no-undef
-const autoipfsOpts = {web3StorageToken: __WEB3_STORAGE_TOKEN__};
+import { type Link } from "@ipld/unixfs/file/layout/queue";
+import { type FileLink } from "@ipld/unixfs/directory";
 
-let autoipfs = null;
+const autoipfsOpts = {
+  web3StorageToken: __WEB3_STORAGE_TOKEN__,
+  daemonURL: "",
+};
 
-export async function setAutoIPFSUrl(url) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let autoipfs: any = null;
+
+type ReplayOpts = {
+  filename?: string;
+  customSplits?: boolean;
+  gzip?: boolean;
+  replayBaseUrl?: string;
+  showEmbed?: boolean;
+  pageUrl?: string;
+  pageTitle?: string;
+  deepLink?: boolean;
+  loading?: boolean;
+};
+
+type MetadataWithIPFS = CollMetadata & {
+  ipfsPins?: { url: string; cid: string }[] | null;
+};
+
+export async function setAutoIPFSUrl(url: string) {
   if (autoipfsOpts.daemonURL !== url) {
     autoipfs = null;
   }
   autoipfsOpts.daemonURL = url;
 }
 
-export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progress = null) {
+export async function ipfsAdd(
+  coll: Collection,
+  downloaderOpts: DownloaderOpts,
+  replayOpts: ReplayOpts = {},
+  progress: (incSize: number, totalSize: number) => void,
+) {
   if (!autoipfs) {
     autoipfs = await createAutoIPFS(autoipfsOpts);
   }
@@ -29,16 +58,22 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
     const ZIP = new Uint8Array([]);
     const WARC_PAYLOAD = new Uint8Array([]);
     const WARC_GROUP = new Uint8Array([]);
-    downloaderOpts.markers = {ZIP, WARC_PAYLOAD, WARC_GROUP};
+    downloaderOpts.markers = { ZIP, WARC_PAYLOAD, WARC_GROUP };
   }
 
   const gzip = replayOpts.gzip !== undefined ? replayOpts.gzip : true;
 
-  const dl = new Downloader({...downloaderOpts, coll, filename, gzip});
+  const dl = new Downloader({ ...downloaderOpts, coll, filename, gzip });
   const dlResponse = await dl.download();
 
-  if (!coll.config.metadata.ipfsPins) {
-    coll.config.metadata.ipfsPins = [];
+  if (!(dlResponse instanceof Response)) {
+    throw new Error(dlResponse.error);
+  }
+
+  const metadata: MetadataWithIPFS = coll.config.metadata || {};
+
+  if (!metadata.ipfsPins) {
+    metadata.ipfsPins = [];
   }
 
   let concur;
@@ -60,7 +95,7 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   const { readable, writable } = new TransformStream(
     {},
-    UnixFS.withCapacity(capacity)
+    UnixFS.withCapacity(capacity),
   );
 
   const baseUrl = replayOpts.replayBaseUrl || self.location.href;
@@ -72,33 +107,38 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
 
   try {
     favicon = await fetchBuffer("icon.png", baseUrl);
-  } catch (e) {
+  } catch (_e) {
     console.warn("Couldn't load favicon");
   }
 
-  const htmlContent = getReplayHtml(dlResponse.filename, replayOpts);
+  const htmlContent = getReplayHtml(dlResponse.filename!, replayOpts);
 
   let totalSize = 0;
 
-  if (coll.config && coll.config.metadata && coll.config.metadata.size) {
-    totalSize = coll.config.metadata.size +
-    swContent.length + uiContent.length + (favicon ? favicon.length : 0) + htmlContent.length;
+  if (coll.config.metadata?.size) {
+    totalSize =
+      coll.config.metadata.size +
+      swContent.length +
+      uiContent.length +
+      (favicon ? favicon.length : 0) +
+      htmlContent.length;
   }
 
   progress(0, totalSize);
 
-  let url, cid;
+  let url = "";
+  let cid = "";
 
-  let reject = null;
+  let reject: ((reason?: string) => void) | null = null;
 
-  const p2 = new Promise((res, rej) => reject = rej);
+  const p2 = new Promise((res, rej) => (reject = rej));
 
   const p = readable
     .pipeThrough(new ShardingStream(shardSize))
-    .pipeThrough(new ShardStoringStream(autoipfs, concur, reject))
+    .pipeThrough(new ShardStoringStream(autoipfs, concur, reject!))
     .pipeTo(
       new WritableStream({
-        write: (res) => {
+        write: (res: { url: string; cid: string; size: number }) => {
           if (res.url && res.cid) {
             url = res.url;
             cid = res.cid;
@@ -107,77 +147,98 @@ export async function ipfsAdd(coll, downloaderOpts = {}, replayOpts = {}, progre
             progress(res.size, totalSize);
           }
         },
-      })
+      }),
     );
 
-  ipfsGenerateCar( 
-    writable, 
-    dlResponse.filename, dlResponse.body,
-    swContent, uiContent, htmlContent, replayOpts,
-    downloaderOpts.markers, favicon,
-  );
+  ipfsGenerateCar(
+    writable,
+    dlResponse.filename || "",
+    dlResponse.body!,
+    swContent,
+    uiContent,
+    htmlContent,
+    replayOpts,
+    downloaderOpts.markers!,
+    favicon,
+  ).catch((e: unknown) => console.log("generate car failed", e));
 
   await Promise.race([p, p2]);
 
-  const res = {cid: cid.toString(), url};
+  const res = { cid: cid.toString(), url };
 
-  coll.config.metadata.ipfsPins.push(res);
+  metadata.ipfsPins.push(res);
 
   console.log("ipfs cid added " + url);
 
   return res;
 }
 
-export async function ipfsRemove(coll) {
+export async function ipfsRemove(coll: Collection) {
   if (!autoipfs) {
     autoipfs = await createAutoIPFS(autoipfsOpts);
   }
 
-  if (coll.config.metadata.ipfsPins) {
+  const metadata: MetadataWithIPFS = coll.config.metadata || {};
 
-    for (const {url} of coll.config.metadata.ipfsPins) {
+  if (metadata.ipfsPins) {
+    for (const { url } of metadata.ipfsPins) {
       try {
         await autoipfs.clear(url);
-      } catch (e) {
+      } catch (_e) {
         console.log("Failed to unpin");
-        autoipfsOpts.daemonURL = null;
+        autoipfsOpts.daemonURL = "";
         return false;
       }
     }
 
-    coll.config.metadata.ipfsPins = null;
+    metadata.ipfsPins = null;
     return true;
   }
 
   return false;
 }
 
-async function fetchBuffer(filename, replayBaseUrl) {
+async function fetchBuffer(filename: string, replayBaseUrl: string) {
   const resp = await fetch(new URL(filename, replayBaseUrl).href);
 
   return new Uint8Array(await resp.arrayBuffer());
 }
 
-async function ipfsWriteBuff(writer, name, content, dir) {
+async function ipfsWriteBuff(
+  writer: UnixFS.View<Uint8Array>,
+  name: string,
+  content: Uint8Array | AsyncIterable<Uint8Array>,
+  dir: UnixFS.DirectoryWriterView<Uint8Array>,
+) {
   const file = UnixFS.createFileWriter(writer);
   if (content instanceof Uint8Array) {
-    file.write(content); 
+    await file.write(content);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   } else if (content[Symbol.asyncIterator]) {
     for await (const chunk of content) {
-      file.write(chunk);
+      await file.write(chunk);
     }
   }
-  const link = await file.close(); 
+  const link = await file.close();
   dir.set(name, link);
 }
 
 // ===========================================================================
-export async function ipfsGenerateCar(writable, waczPath, 
-  waczContent, swContent, uiContent, htmlContent, replayOpts, markers, favicon) {
+export async function ipfsGenerateCar(
+  writable: WritableStream<UnixFS.Block>,
+  waczPath: string,
+  waczContent: ReadableStream<Uint8Array>,
+  swContent: Uint8Array,
+  uiContent: Uint8Array,
+  htmlContent: string,
+  replayOpts: ReplayOpts,
+  markers: Markers | null,
+  favicon: Uint8Array | null,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
+  const writer = UnixFS.createWriter<Uint8Array>({ writable });
 
-  const writer = UnixFS.createWriter({ writable });
-
-  const rootDir = UnixFS.createDirectoryWriter(writer);
+  const rootDir = UnixFS.createDirectoryWriter<Uint8Array>(writer);
 
   const encoder = new TextEncoder();
 
@@ -186,7 +247,7 @@ export async function ipfsGenerateCar(writable, waczPath,
   if (replayOpts.showEmbed) {
     const replayDir = UnixFS.createDirectoryWriter(writer);
     await ipfsWriteBuff(writer, "sw.js", swContent, replayDir);
-    await rootDir.set("replay", await replayDir.close());
+    rootDir.set("replay", await replayDir.close());
   } else {
     await ipfsWriteBuff(writer, "sw.js", swContent, rootDir);
   }
@@ -195,42 +256,58 @@ export async function ipfsGenerateCar(writable, waczPath,
     await ipfsWriteBuff(writer, "favicon.ico", favicon, rootDir);
   }
 
-  await ipfsWriteBuff(writer, "index.html", encoder.encode(htmlContent), rootDir);
+  await ipfsWriteBuff(
+    writer,
+    "index.html",
+    encoder.encode(htmlContent),
+    rootDir,
+  );
 
   if (!markers) {
     await ipfsWriteBuff(writer, waczPath, iterate(waczContent), rootDir);
   } else {
-    await splitByWarcRecordGroup(writer, waczPath, iterate(waczContent), rootDir, markers);
+    await splitByWarcRecordGroup(
+      writer,
+      waczPath,
+      iterate(waczContent),
+      rootDir,
+      markers,
+    );
   }
 
-  const {cid} = await rootDir.close();
+  const { cid } = await rootDir.close();
 
-  writer.close();
+  await writer.close();
 
   return cid;
 }
 
-
-async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, markers) {
-  let links = [];
-  const fileLinks = [];
-  let secondaryLinks = [];
+async function splitByWarcRecordGroup(
+  writer: UnixFS.View<Uint8Array>,
+  waczPath: string,
+  warcIter: AsyncGenerator<Uint8Array>,
+  rootDir: UnixFS.DirectoryWriterView<Uint8Array>,
+  markers: Markers,
+) {
+  let links: FileLink[] = [];
+  const fileLinks: FileLink[] = [];
+  let secondaryLinks: FileLink[] = [];
 
   let inZipFile = false;
   let lastChunk = null;
-  let currName = null;
+  let currName = "";
 
   const decoder = new TextDecoder();
 
-  const dirs = {};
+  const dirs: Record<string, UnixFS.DirectoryWriterView<Uint8Array>> = {};
 
-  const {ZIP, WARC_PAYLOAD, WARC_GROUP} = markers;
+  const { ZIP, WARC_PAYLOAD, WARC_GROUP } = markers;
 
   let file = UnixFS.createFileWriter(writer);
 
-  function getDirAndName(fullpath) {
+  function getDirAndName(fullpath: string): [string, string] {
     const parts = fullpath.split("/");
-    const filename = parts.pop();
+    const filename = parts.pop() || "";
     return [parts.join("/"), filename];
   }
 
@@ -250,9 +327,7 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
         count = 0;
         file = UnixFS.createFileWriter(writer);
       }
-
     } else if (chunk === ZIP && inZipFile) {
-
       if (count) {
         links.push(await file.close());
         count = 0;
@@ -272,10 +347,11 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
         links = [];
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       fileLinks.push(link);
 
       const [dirName, filename] = getDirAndName(currName);
-      currName = null;
+      currName = "";
 
       let dir;
 
@@ -288,11 +364,11 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
         dir = dirs[dirName];
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       dir.set(filename, link);
 
       inZipFile = false;
     } else if (chunk === WARC_PAYLOAD || chunk === WARC_GROUP) {
-
       if (!inZipFile) {
         throw new Error("invalid state");
       }
@@ -303,6 +379,7 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
         file = UnixFS.createFileWriter(writer);
 
         if (chunk === WARC_GROUP) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           secondaryLinks.push(await concat(writer, links));
           links = [];
         }
@@ -311,7 +388,7 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
       if (!inZipFile) {
         lastChunk = chunk;
       }
-      file.write(chunk);
+      await file.write(chunk);
       count++;
     }
   }
@@ -339,13 +416,20 @@ async function splitByWarcRecordGroup(writer, waczPath, warcIter, rootDir, marke
 
   rootDir.set("webarchive", await waczDir.close());
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   rootDir.set(waczPath, await concat(writer, fileLinks));
 }
 
-async function concat(writer, links) {
+async function concat(
+  writer: UnixFS.View<Uint8Array>,
+  links: Link[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
   //TODO: is this the right way to do this?
-  const {fileEncoder, hasher, linker} = writer.settings;
-  const advanced = fileEncoder.createAdvancedFile(links);
+  const { fileEncoder, hasher, linker } = writer.settings;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const advanced = (fileEncoder as any).createAdvancedFile(links);
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const bytes = fileEncoder.encode(advanced);
   const hash = await hasher.digest(bytes);
   const cid = linker.createLink(fileEncoder.code, hash);
@@ -354,15 +438,18 @@ async function concat(writer, links) {
 
   const link = {
     cid,
-    contentByteLength: fileEncoder.cumulativeContentByteLength(links),
-    dagByteLength: fileEncoder.cumulativeDagByteLength(bytes, links),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contentByteLength: (fileEncoder as any).cumulativeContentByteLength(links),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dagByteLength: (fileEncoder as any).cumulativeDagByteLength(bytes, links),
   };
 
   return link;
 }
 
-export const iterate = async function* (stream) {
+export const iterate = async function* (stream: ReadableStream<Uint8Array>) {
   const reader = stream.getReader();
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
     const next = await reader.read();
     if (next.done) {
@@ -373,8 +460,9 @@ export const iterate = async function* (stream) {
   }
 };
 
-export async function encodeBlocks(blocks, root) {
-  // @ts-expect-error
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function encodeBlocks(blocks: UnixFS.Block[], root?: any) {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const { writer, out } = CarWriter.create(root);
   /** @type {Error?} */
   let error;
@@ -384,7 +472,7 @@ export async function encodeBlocks(blocks, root) {
         // @ts-expect-error
         await writer.put(block);
       }
-    } catch (/** @type {any} */ err) {
+    } catch (err: unknown) {
       error = err;
     } finally {
       await writer.close();
@@ -392,14 +480,14 @@ export async function encodeBlocks(blocks, root) {
   })();
   const chunks = [];
   for await (const chunk of out) chunks.push(chunk);
-  // @ts-expect-error
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (error != null) throw error;
   const roots = root != null ? [root] : [];
   console.log("chunks", chunks.length);
   return Object.assign(new Blob(chunks), { version: 1, roots });
 }
 
-function getReplayHtml(waczPath, replayOpts = {}) {
+function getReplayHtml(waczPath: string, replayOpts: ReplayOpts = {}) {
   const { showEmbed, pageUrl, pageTitle, deepLink, loading } = replayOpts;
 
   return `
@@ -420,15 +508,16 @@ function getReplayHtml(waczPath, replayOpts = {}) {
       }
     </style>
   </head>
-  <body>${showEmbed ? `
-    <replay-web-page ${deepLink ? "deepLink=\"true\" " : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>` : `
+  <body>${
+    showEmbed
+      ? `
+    <replay-web-page ${deepLink ? 'deepLink="true" ' : ""} ${pageUrl ? `url="${pageUrl}"` : ""} loading="${loading || ""}" embed="replay-with-info" src="${waczPath}"></replay-web-page>`
+      : `
     <replay-app-main skipRuffle source="${waczPath}"></replay-app-main>`
-}
+  }
   </body>
 </html>`;
 }
-
-
 
 // Copied from https://github.com/web3-storage/w3protocol/blob/main/packages/upload-client/src/sharding.js
 
@@ -442,11 +531,11 @@ export class ShardingStream extends TransformStream {
   /**
    * @param {import('./types').ShardingOptions} [options]
    */
-  constructor(shardSize) {
+  constructor(shardSize: number) {
     /** @type {import('@ipld/unixfs').Block[]} */
-    let shard = [];
+    let shard: UnixFS.Block[] = [];
     /** @type {import('@ipld/unixfs').Block[] | null} */
-    let readyShard = null;
+    let readyShard: UnixFS.Block[] | null = null;
     let readySize = 0;
 
     let currSize = 0;
@@ -456,7 +545,7 @@ export class ShardingStream extends TransformStream {
         if (readyShard != null) {
           const blocks = await encodeBlocks(readyShard);
           const size = readySize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
           readyShard = null;
         }
         if (shard.length && currSize + block.bytes.length > shardSize) {
@@ -465,6 +554,7 @@ export class ShardingStream extends TransformStream {
           shard = [];
           currSize = 0;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         shard.push(block);
         currSize += block.bytes.length;
       },
@@ -473,14 +563,14 @@ export class ShardingStream extends TransformStream {
         if (readyShard != null) {
           const blocks = await encodeBlocks(readyShard);
           const size = readySize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
         }
 
         const rootBlock = shard.at(-1);
         if (rootBlock != null) {
           const blocks = await encodeBlocks(shard, rootBlock.cid);
           const size = currSize;
-          controller.enqueue({blocks, size});
+          controller.enqueue({ blocks, size });
         }
       },
     });
@@ -499,11 +589,17 @@ export class ShardingStream extends TransformStream {
  * @extends {TransformStream<import('./types').CARFile, import('./types').CARMetadata>}
  */
 export class ShardStoringStream extends TransformStream {
-  constructor(autoipfs, concurrency, reject) {
+  constructor(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    autoipfs: any,
+    concurrency: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    reject: (reason?: any) => void,
+  ) {
     const queue = new Queue({ concurrency });
     const abortController = new AbortController();
     super({
-      async transform({blocks, size}, controller) {
+      async transform({ blocks, size }, controller) {
         void queue.add(
           async () => {
             try {
@@ -512,18 +608,18 @@ export class ShardStoringStream extends TransformStream {
               const resUrls = await autoipfs.uploadCAR(blocks);
               const url = resUrls[0];
 
-              controller.enqueue({cid, url, size});
+              controller.enqueue({ cid, url, size });
 
               //const { version, roots, size } = car
               //controller.enqueue({ version, roots, cid, size })
             } catch (err) {
               controller.error(err);
               abortController.abort(err);
-              autoipfsOpts.daemonURL = null;
+              autoipfsOpts.daemonURL = "";
               reject(err);
             }
           },
-          { signal: abortController.signal }
+          { signal: abortController.signal },
         );
 
         // retain backpressure by not returning until no items queued to be run
