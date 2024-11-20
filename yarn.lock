@@ -621,16 +621,16 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.5.tgz#325db42395cd49fe6c14057f9a900e427df8810e"
   integrity sha512-lqaoKnRYBdo1UgDX8uF24AfGMifWK19TxPmM5FHc2vAGxrJ/qtyUyFBWoY1tISZdelsQ5fBcOusifo5o5wSJxQ==
 
-"@webrecorder/wabac@^2.20.0":
-  version "2.20.0"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.20.0.tgz#d9f87a909a0c09e460cf8b86082a71c176e0c9f8"
-  integrity sha512-zeR+CmAfJO2MQSKwRwcccy7+TfeKTX0A1yeHlO98mtsT3VMtTqrdasIDEjIxe39aEbBl11k+m8DQyrz3CctJNQ==
+"@webrecorder/wabac@^2.20.4":
+  version "2.20.4"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.20.4.tgz#aacc3038e92992fb58039107fe57dfdb41893542"
+  integrity sha512-OK9nMI03rDL+KEn5iT1TUKuz7AdjzeS3F0/5KTOWHp+QCN3ZvjABRLZYxa9LIGiEWKbVEvoG/oriFZntR3/VWw==
   dependencies:
     "@peculiar/asn1-ecc" "^2.3.4"
     "@peculiar/asn1-schema" "^2.3.3"
     "@peculiar/x509" "^1.9.2"
     "@types/js-levenshtein" "^1.1.3"
-    "@webrecorder/wombat" "^3.8.2"
+    "@webrecorder/wombat" "^3.8.6"
     acorn "^8.10.0"
     auto-js-ipfs "^2.1.1"
     base64-js "^1.5.1"
@@ -649,14 +649,14 @@
     path-parser "^6.1.0"
     process "^0.11.10"
     stream-browserify "^3.0.0"
-    warcio "^2.3.1"
+    warcio "^2.4.2"
 
-"@webrecorder/wombat@^3.8.2":
-  version "3.8.2"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.8.2.tgz#e46e18719834d633175eec52ce753a4dc4e48e27"
-  integrity sha512-uUZr9V4UYpVOpM64Tm27ND/hMjDbT37+/qyNaNV6loqDuVzBVQh5w7SfTEy0Bbjj1MYyNZP244mOtWtotTpUEA==
+"@webrecorder/wombat@^3.8.6":
+  version "3.8.6"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.8.6.tgz#3aa99d9519f6263434a9e0b963f6ef86d3e0494a"
+  integrity sha512-+IxV0bkoc6QdHYzwejsPFPC31dRjaxa6zGuR9F08aFb4Ooeekf9AK16ZIYweizs/wm7nvTG5E12ZwW0LUUzX8w==
   dependencies:
-    warcio "^2.3.1"
+    warcio "^2.4.0"
 
 "@xtuc/ieee754@^1.2.0":
   version "1.2.0"
@@ -2256,6 +2256,34 @@ warcio@^2.3.1:
     uuid-random "^1.3.2"
     yargs "^17.6.2"
 
+warcio@^2.4.0:
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.4.0.tgz#13bae2837f1bbf5cf7585f75857e6311d30557bd"
+  integrity sha512-EfxXCgsnZ35CGf2j99QBMyB6EI98KEQ6YmeER+8Lnv/4KFJ3thT76PiX37HfZVbPJS21JihA0Eddjk9QBQRlPg==
+  dependencies:
+    "@types/pako" "^1.0.7"
+    "@types/stream-buffers" "^3.0.7"
+    base32-encode "^2.0.0"
+    hash-wasm "^4.9.0"
+    pako "^1.0.11"
+    tempy "^3.1.0"
+    uuid-random "^1.3.2"
+    yargs "^17.7.2"
+
+warcio@^2.4.2:
+  version "2.4.2"
+  resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.4.2.tgz#782d8dcb0769f271b0ae96521fb4969e2570e9b3"
+  integrity sha512-QYbZ3EGYtnAIrzL7Bajo7ak87pipilpkIfaFIzFQWUX4wuXNuKqnfQy/EAoi2tEIl3VJgsWcL+wjjk4+15MKbQ==
+  dependencies:
+    "@types/pako" "^1.0.7"
+    "@types/stream-buffers" "^3.0.7"
+    base32-encode "^2.0.0"
+    hash-wasm "^4.9.0"
+    pako "^1.0.11"
+    tempy "^3.1.0"
+    uuid-random "^1.3.2"
+    yargs "^17.7.2"
+
 watchpack@^2.4.1:
   version "2.4.1"
   resolved "https://registry.yarnpkg.com/watchpack/-/watchpack-2.4.1.tgz#29308f2cac150fa8e4c92f90e0ec954a9fed7fff"
@@ -2370,6 +2398,19 @@ yargs@^17.6.2:
   version "17.6.2"
   resolved "https://registry.yarnpkg.com/yargs/-/yargs-17.6.2.tgz#2e23f2944e976339a1ee00f18c77fedee8332541"
   integrity sha512-1/9UrdHjDZc0eOU0HxOHoS78C69UD3JRMvzlJ7S79S2nTaWRA/whGCTV8o9e/N/1Va9YIV7Q4sOxD8VV4pCWOw==
+  dependencies:
+    cliui "^8.0.1"
+    escalade "^3.1.1"
+    get-caller-file "^2.0.5"
+    require-directory "^2.1.1"
+    string-width "^4.2.3"
+    y18n "^5.0.5"
+    yargs-parser "^21.1.1"
+
+yargs@^17.7.2:
+  version "17.7.2"
+  resolved "https://registry.yarnpkg.com/yargs/-/yargs-17.7.2.tgz#991df39aca675a192b816e1e0363f9d75d2aa269"
+  integrity sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==
   dependencies:
     cliui "^8.0.1"
     escalade "^3.1.1"
