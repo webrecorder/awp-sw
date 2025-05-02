@@ -621,16 +621,16 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.5.tgz#325db42395cd49fe6c14057f9a900e427df8810e"
   integrity sha512-lqaoKnRYBdo1UgDX8uF24AfGMifWK19TxPmM5FHc2vAGxrJ/qtyUyFBWoY1tISZdelsQ5fBcOusifo5o5wSJxQ==
 
-"@webrecorder/wabac@^2.20.6":
-  version "2.20.6"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.20.6.tgz#8b28b58d5ae900faebd7be30224eadc620838f9e"
-  integrity sha512-bCvHgfnKHFzEuwPkIxdYIVuBmVTzOgxf96DeDTdZkhPI99iP7AUrz/Y6+qgoD9Vjn4usozUff25vdViD5mtiUg==
+"@webrecorder/wabac@^2.22.15":
+  version "2.22.15"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wabac/-/wabac-2.22.15.tgz#2b5c31cf16fdd2055e7bae331fa26488359df9cd"
+  integrity sha512-GJvFNCnDdvpij1mBNRRpT4zfr66W5td4NpNKEPmBtEwTPdlRyNlU96ZSL3NRVtzvg7RG6LpI6Oa86lKd6EUpBA==
   dependencies:
     "@peculiar/asn1-ecc" "^2.3.4"
     "@peculiar/asn1-schema" "^2.3.3"
     "@peculiar/x509" "^1.9.2"
     "@types/js-levenshtein" "^1.1.3"
-    "@webrecorder/wombat" "^3.8.7"
+    "@webrecorder/wombat" "^3.8.11"
     acorn "^8.10.0"
     auto-js-ipfs "^2.1.1"
     base64-js "^1.5.1"
@@ -649,12 +649,12 @@
     path-parser "^6.1.0"
     process "^0.11.10"
     stream-browserify "^3.0.0"
-    warcio "^2.4.2"
+    warcio "^2.4.3"
 
-"@webrecorder/wombat@^3.8.7":
-  version "3.8.7"
-  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.8.7.tgz#51c7465c589e0020be064121127c7c10a38ec21f"
-  integrity sha512-bW5V7cBweTkTazOIN8oZZGwHLevsGNv1luY3t0RYdEZhs5BDpTmUHN33zEbrXDOiPUlY3N3I8+73VA+PuxihoQ==
+"@webrecorder/wombat@^3.8.11":
+  version "3.8.11"
+  resolved "https://registry.yarnpkg.com/@webrecorder/wombat/-/wombat-3.8.11.tgz#392a3a7003fdb41f5b214d4571d5f38f9978f2c8"
+  integrity sha512-Sg97woFtMFPh0PJ60WV9sze4nw5aPEq+BE9dFwdd6WpA45da0pkjCVX9z+YXejQLxdvKy24U9+rDPA9W6XqIGQ==
   dependencies:
     warcio "^2.4.0"
 
@@ -2270,10 +2270,10 @@ warcio@^2.4.0:
     uuid-random "^1.3.2"
     yargs "^17.7.2"
 
-warcio@^2.4.2:
-  version "2.4.2"
-  resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.4.2.tgz#782d8dcb0769f271b0ae96521fb4969e2570e9b3"
-  integrity sha512-QYbZ3EGYtnAIrzL7Bajo7ak87pipilpkIfaFIzFQWUX4wuXNuKqnfQy/EAoi2tEIl3VJgsWcL+wjjk4+15MKbQ==
+warcio@^2.4.3:
+  version "2.4.4"
+  resolved "https://registry.yarnpkg.com/warcio/-/warcio-2.4.4.tgz#6c0c030bb55c0f0b824f854fa9e6718ca25d333d"
+  integrity sha512-FrWOhv1qLNhPBPGEMm24Yo+DtkipK5DxK3ckVGbOf0OJ/UqaxAhiiby74q+GW70dsJV0wF+RA1ToK6CKseTshA==
   dependencies:
     "@types/pako" "^1.0.7"
     "@types/stream-buffers" "^3.0.7"
