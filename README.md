@@ -1,3 +1,6 @@
+DEPRECATED: The functionality in this remove has been factored back into https://webrecorder/archiveweb.page. This library is no longer maintained.
+--
+
 ## ArchiveWeb.page Service Worker (awp-sw)
 
 This library has been factored out of [ArchiveWeb.page](https://webrecorder/archiveweb.page) and represents the core service worker implementation
